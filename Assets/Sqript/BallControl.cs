@@ -1,12 +1,14 @@
 ﻿using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
+using System;
 public class BallControl : MonoBehaviour
 {
     [SerializeField, Header("始点")] Transform _startPos;
     [SerializeField, Header("終点")] Transform _endPos;
     [SerializeField] List<PitchSettings> _controlPointsList;
     [SerializeField] PitchType _pitchType;
+    public int PichTypeCount { get; private set; }
     /// <summary>
     /// 制御点
     /// </summary>
@@ -27,7 +29,7 @@ public class BallControl : MonoBehaviour
         public float Time;
     }
     [SerializeField]
-    private enum PitchType
+    public enum PitchType
     {
         Fastball,
         Curveball,
@@ -37,7 +39,29 @@ public class BallControl : MonoBehaviour
 
     private void Start()
     {
+        PichTypeCount = Enum.GetValues(typeof(PitchType)).Length;
+    }
+
+    public void Pitching()
+    {
         this.transform.position = _startPos.position;
+        //度の球種を投げるのかをランダムに決定
+        int random = UnityEngine.Random.Range(0, PichTypeCount);
+        switch (random)
+        {
+            case 0:
+                _pitchType = PitchType.Fastball;
+                break;
+            case 1:
+                _pitchType = PitchType.Curveball;
+                break;
+            case 2:
+                _pitchType = PitchType.Slider;
+                break;
+            case 3:
+                _pitchType = PitchType.Fork;
+                break;
+        }
         SetupControlPoints();
         StartCoroutine(MoveBall());
     }
@@ -46,7 +70,7 @@ public class BallControl : MonoBehaviour
     {
         if (Input.GetKeyDown(KeyCode.S))
         {
-            Start();
+            Pitching();
         }
     }
 

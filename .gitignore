@@ -70,3 +70,35 @@ crashlytics-build.properties
 # Temporary auto-generated Android Assets
 /[Aa]ssets/[Ss]treamingAssets/aa.meta
 /[Aa]ssets/[Ss]treamingAssets/aa/*
+Assets/baseball field.fbx
+Assets/baseball field.fbx.meta
+Assets/material.meta
+Assets/plaster_grey_04_diff_1k.png
+Assets/plaster_grey_04_diff_1k.png.meta
+Assets/plaster_grey_04_nor_gl_1k.png
+Assets/plaster_grey_04_nor_gl_1k.png.meta
+Assets/tex ground.png
+Assets/tex ground.png.meta
+Assets/tex net.png
+Assets/tex net.png.meta
+Assets/material/blue.mat
+Assets/material/blue.mat.meta
+Assets/material/Co.mat
+Assets/material/Co.mat.meta
+Assets/material/ground.mat
+Assets/material/ground.mat.meta
+Assets/material/leg.mat
+Assets/material/leg.mat.meta
+Assets/material/light.mat
+Assets/material/light.mat.meta
+Assets/material/metal.mat
+Assets/material/metal.mat.meta
+Assets/material/net.mat
+Assets/material/net.mat.meta
+Assets/material/pole.mat
+Assets/material/pole.mat.meta
+Assets/material/seat.mat
+Assets/material/seat.mat.meta
+Assets/material/white line.mat
+Assets/material/white line.mat.meta
+ProjectSettings/SceneTemplateSettings.json
