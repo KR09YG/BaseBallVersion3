@@ -1,5 +1,3 @@
-using System;
-using System.IO;
 using UnityEngine;
 
 public class PitchManager : MonoBehaviour
@@ -8,11 +6,13 @@ public class PitchManager : MonoBehaviour
     [SerializeField] BallControl _ball;
     public void StartPitch()
     {
+        Debug.Log("アニメーションスタート");
         _anim.SetTrigger("isPitch");
     }
 
     public void Release()
     {
+        Debug.Log("release");
         _ball.Pitching();
     }
 
