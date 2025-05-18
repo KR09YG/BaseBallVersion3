@@ -8,6 +8,9 @@ public class BallControl : MonoBehaviour
     [SerializeField, Header("終点")] Transform _endPos;
     [SerializeField] List<PitchSettings> _controlPointsList;
     [SerializeField] PitchType _pitchType;
+
+    [SerializeField] MeshRenderer _moveBallMesh;
+    [SerializeField] MeshRenderer _pitcherBallMesh;
     public int PichTypeCount { get; private set; }
     /// <summary>
     /// 制御点
@@ -113,6 +116,8 @@ public class BallControl : MonoBehaviour
     /// </summary>
     private IEnumerator MoveBall()
     {
+        _pitcherBallMesh.enabled = false;
+        _moveBallMesh.enabled = true;
         float t = 0;
 
         while (t < 1.0f)
@@ -124,6 +129,10 @@ public class BallControl : MonoBehaviour
 
             yield return null; // 次のフレームまで待機
         }
+
+        yield return new WaitForSeconds(1f);
+        _moveBallMesh.enabled = false;
+        _pitcherBallMesh.enabled = true;
     }
 
     /// <summary>
