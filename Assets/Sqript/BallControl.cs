@@ -4,18 +4,22 @@ using System.Collections.Generic;
 using System;
 public class BallControl : MonoBehaviour
 {
-    [SerializeField, Header("始点")] Transform _startPos;
-    [SerializeField, Header("終点")] Transform _endPos;
-    [SerializeField] List<PitchSettings> _controlPointsList;
-    [SerializeField] PitchType _pitchType;
+    [SerializeField, Header("始点")] private Transform _startPos;
+    [SerializeField, Header("終点")] private Transform _endPos;
 
-    [SerializeField] MeshRenderer _moveBallMesh;
-    [SerializeField] MeshRenderer _pitcherBallMesh;
+    [SerializeField] private List<PitchSettings> _controlPointsList;
+
+    [SerializeField] private PitchType _pitchType;
+
+    [SerializeField] private MeshRenderer _moveBallMesh;
+    [SerializeField] private MeshRenderer _pitcherBallMesh;
+
+    [SerializeField] private BallJudge _bj;
     public int PichTypeCount { get; private set; }
     /// <summary>
     /// 制御点
     /// </summary>
-    Vector3 _controlPoint1, _controlPoint2;
+    private Vector3 _controlPoint1, _controlPoint2;
     /// <summary>
     /// 始点から終点にたどり着くまでの時間
     /// </summary>
@@ -130,6 +134,7 @@ public class BallControl : MonoBehaviour
             yield return null; // 次のフレームまで待機
         }
 
+        _bj.StrikeJudge();
         yield return new WaitForSeconds(1f);
         _moveBallMesh.enabled = false;
         _pitcherBallMesh.enabled = true;
