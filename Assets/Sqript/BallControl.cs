@@ -52,6 +52,7 @@ public class BallControl : MonoBehaviour
     public void Pitching()
     {
         Debug.Log("スタートピッチ");
+        _bj.IsPitching();
         this.transform.position = _startPos.position;
         //度の球種を投げるのかをランダムに決定
         int random = UnityEngine.Random.Range(0, PichTypeCount);
@@ -134,7 +135,9 @@ public class BallControl : MonoBehaviour
             yield return null; // 次のフレームまで待機
         }
 
+        _bj.IsPitching();
         _bj.StrikeJudge();
+
         yield return new WaitForSeconds(1f);
         _moveBallMesh.enabled = false;
         _pitcherBallMesh.enabled = true;
