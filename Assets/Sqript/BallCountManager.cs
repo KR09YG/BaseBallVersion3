@@ -35,6 +35,7 @@ public class BallCountManager : MonoBehaviour
         else
         {
             StrikeCount = 0;
+            BallCount = 0;
             OutCalled();
         }
         Debug.Log($"Strike {StrikeCount}");
@@ -46,7 +47,12 @@ public class BallCountManager : MonoBehaviour
         {
             BallCount++;
         }
-        Debug.Log($"Ball {BallCount}");
+        else
+        {
+            BallCount = 0;
+            StrikeCount = 0;
+        }
+            Debug.Log($"Ball {BallCount}");
     }
 
     public void OutCalled()
@@ -55,7 +61,11 @@ public class BallCountManager : MonoBehaviour
         {
             OutCount++;
         }
-        Debug.Log($"Out {OutCount}");
+        else
+        {
+            OutCount = 0;
+        }
+            Debug.Log($"Out {OutCount}");
     }
 
 }
