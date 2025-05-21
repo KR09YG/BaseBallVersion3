@@ -13,6 +13,7 @@ public class PitchManager : MonoBehaviour
     public void Release()
     {
         Debug.Log("release");
+        _ball.enabled = true;
         _ball.Pitching();
     }
 

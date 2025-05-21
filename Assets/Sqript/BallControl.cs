@@ -1,7 +1,7 @@
 ﻿using UnityEngine;
+using System;
 using System.Collections;
 using System.Collections.Generic;
-using System;
 public class BallControl : MonoBehaviour
 {
     [SerializeField, Header("始点")] private Transform _startPos;
@@ -14,6 +14,8 @@ public class BallControl : MonoBehaviour
     [SerializeField] private MeshRenderer _moveBallMesh;
     [SerializeField] private MeshRenderer _pitcherBallMesh;
 
+    [SerializeField] private Rigidbody _rb;
+
     [SerializeField] private BallJudge _bj;
     public int PichTypeCount { get; private set; }
     /// <summary>
@@ -25,7 +27,7 @@ public class BallControl : MonoBehaviour
     /// </summary>
     private float _pitchDuration;
 
-    [System.Serializable]
+    [Serializable]
     public class PitchSettings
     {
         public string Name;
@@ -113,7 +115,7 @@ public class BallControl : MonoBehaviour
 
         _controlPoint1 = Vector3.Lerp(_startPos.position, _endPos.position, p.PathControlRatio1) + p.ControlPoint;
         _controlPoint2 = Vector3.Lerp(_startPos.position, _endPos.position, p.PathControlRatio2) + p.ControlPoint2;
-        _pitchDuration = p.Time;
+        _pitchDuration = p.Time;        
     }
 
     /// <summary>
@@ -135,12 +137,19 @@ public class BallControl : MonoBehaviour
             yield return null; // 次のフレームまで待機
         }
 
+        _rb.angularVelocity = Vector3.zero;
+        _rb.linearVelocity = Vector3.zero;
         _bj.IsPitching();
         _bj.StrikeJudge();
-
-        yield return new WaitForSeconds(1f);
+        
+        yield return new WaitForSeconds(10f);
         _moveBallMesh.enabled = false;
         _pitcherBallMesh.enabled = true;
+    }
+
+    public void StopBall()
+    {
+        StopAllCoroutines();
     }
 
     /// <summary>
