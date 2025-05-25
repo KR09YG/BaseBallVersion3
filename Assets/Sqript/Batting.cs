@@ -16,22 +16,26 @@ public class Batting : MonoBehaviour
         if (Input.GetMouseButtonDown(0) && _timer > _swingInterval)
         {
             Debug.Log("Swing");
-            float timing = _battingCalculation.CalculatePositionBasedAccuracy(
+            float timing = _battingCalculation.CalculatePositionBasedTiming(
                 _ballControl.transform.position, _batCoreTransform.position);
             Debug.Log(timing);
-            Vector3 battingDirection = _battingCalculation.CalculateBatting(
-                _ballControl.transform.position,
-                _batCoreTransform.position,
-                timing,
-                _battingCalculation.CurrentType
-                );
-            _ballControl.enabled = false;
 
-            Debug.DrawRay(_ballRb.position, battingDirection * 5f, Color.red, 1f);
-            _ballControl.StopBall();
-            _ballRb.angularVelocity = Vector3.zero;
-            _ballRb.linearVelocity = Vector3.zero;
-            _ballRb.AddForce(battingDirection, ForceMode.Impulse);
+            if (timing != 0)
+            {
+                Vector3 battingDirection = _battingCalculation.CalculateBattingDirection(
+                    _ballControl.transform.position,
+                    _batCoreTransform.position,
+                    timing,
+                    _battingCalculation.CurrentType
+                    );
+
+                Debug.DrawRay(_ballRb.position, battingDirection * 5f, Color.red, 1f);
+                _ballControl.StopBall();
+                _ballRb.angularVelocity = Vector3.zero;
+                _ballRb.linearVelocity = Vector3.zero;
+                _ballControl.enabled = false;
+                _ballRb.AddForce(battingDirection, ForceMode.Impulse);
+            }
             _timer = 0;
         }
     }
