@@ -771,35 +771,35 @@ MonoBehaviour:
   - Type: 0
     DirectionXModifier: 0
     DirectionYModifier: 1
-    PowerMultiplier: 3
-    ContactRangeBonus: 1
+    PowerMultiplier: 1
+    ContactRangeMultiplier: 1
   - Type: 1
-    DirectionXModifier: -3
-    DirectionYModifier: 1.1
-    PowerMultiplier: 3.2
-    ContactRangeBonus: -0.5
-  - Type: 2
     DirectionXModifier: 3
-    DirectionYModifier: 0
+    DirectionYModifier: 1.1
+    PowerMultiplier: 1.2
+    ContactRangeMultiplier: 0.8
+  - Type: 2
+    DirectionXModifier: -3
+    DirectionYModifier: 0.9
     PowerMultiplier: 0.9
-    ContactRangeBonus: 0.2
+    ContactRangeMultiplier: 1.2
   - Type: 3
     DirectionXModifier: 0
-    DirectionYModifier: 0.5
-    PowerMultiplier: 1.5
-    ContactRangeBonus: -0.5
-  _basePower: 9
-  _maxHihgt: 3
-  _perfectRange: 0.5
-  _goodRange: 0.7
-  _fairRange: 1
-  _maxRange: 1.3
+    DirectionYModifier: 1.2
+    PowerMultiplier: 1.2
+    ContactRangeMultiplier: 0.5
+  _basePower: 30
+  _baseHihgt: 0
+  _perfectRange: 0.7
+  _goodRange: 1.2
+  _fairRange: 1.7
+  _maxRange: 2
   _perfectMultiplier: 2
   _goodMultiplier: 1.5
   _fairMultiplier: 1
   _battingXMultiplier: 50
   _battingYMultiplier: 10
-  CurrentType: 0
+  CurrentType: 3
 --- !u!114 &802164523
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -946,6 +946,37 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 949010377}
   m_CullTransparentMesh: 1
+--- !u!1 &951436382
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 951436383}
+  m_Layer: 0
+  m_Name: ReleasePoint
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &951436383
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 951436382}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -0.0385, y: 0.0212, z: -0.0705}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 809002074}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &984564623
 GameObject:
   m_ObjectHideFlags: 0
@@ -1302,7 +1333,7 @@ Transform:
   m_GameObject: {fileID: 1388175629}
   serializedVersion: 2
   m_LocalRotation: {x: 0.00000025240533, y: 0.70710665, z: -0.70710695, w: -0.0000003931357}
-  m_LocalPosition: {x: 0.015327005, y: 0.08718852, z: 0.048922643}
+  m_LocalPosition: {x: 0.0153, y: 0.0872, z: 0.0371}
   m_LocalScale: {x: 0.09751976, y: 0.09751977, z: 0.09751976}
   m_ConstrainProportionsScale: 1
   m_Children: []
@@ -1530,6 +1561,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 1852576806548013000, guid: aefb435dce29300459cd508a40f44b58, type: 3}
       insertIndex: -1
       addedObject: {fileID: 1388175632}
+    - targetCorrespondingSourceObject: {fileID: 1852576806548013000, guid: aefb435dce29300459cd508a40f44b58, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 951436383}
     m_AddedComponents:
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: aefb435dce29300459cd508a40f44b58, type: 3}
       insertIndex: -1
@@ -1626,8 +1660,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: adcb6689d9579a34aa7139e990f58712, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _startPos: {fileID: 809002074}
+  _releasePoint: {fileID: 951436383}
   _endPos: {fileID: 1319184230}
+  _meetRenderer: {fileID: 279455642}
   _controlPointsList:
   - Name: "\u30B9\u30C8\u30EC\u30FC\u30C8"
     ControlPoint: {x: 0, y: 0, z: 0}
