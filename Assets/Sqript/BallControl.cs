@@ -4,8 +4,11 @@ using System.Collections;
 using System.Collections.Generic;
 public class BallControl : MonoBehaviour
 {
-    [SerializeField, Header("始点")] private Transform _startPos;
+    [SerializeField, Header("始点")] private Transform _releasePoint;
     [SerializeField, Header("終点")] private Transform _endPos;
+    private Vector3 _startPoint;
+
+    [SerializeField] private MeshRenderer _meetRenderer;
 
     [SerializeField] private List<PitchSettings> _controlPointsList;
 
@@ -55,7 +58,9 @@ public class BallControl : MonoBehaviour
     {
         Debug.Log("スタートピッチ");
         _bj.IsPitching();
-        this.transform.position = _startPos.position;
+        _meetRenderer.enabled = false;
+        this.transform.position = _releasePoint.position;
+        _startPoint = _releasePoint.position;
         //度の球種を投げるのかをランダムに決定
         int random = UnityEngine.Random.Range(0, PichTypeCount);
         //_endPosのx,y座標をランダムに決定
@@ -113,8 +118,8 @@ public class BallControl : MonoBehaviour
                 break;
         }
 
-        _controlPoint1 = Vector3.Lerp(_startPos.position, _endPos.position, p.PathControlRatio1) + p.ControlPoint;
-        _controlPoint2 = Vector3.Lerp(_startPos.position, _endPos.position, p.PathControlRatio2) + p.ControlPoint2;
+        _controlPoint1 = Vector3.Lerp(_startPoint, _endPos.position, p.PathControlRatio1) + p.ControlPoint;
+        _controlPoint2 = Vector3.Lerp(_startPoint, _endPos.position, p.PathControlRatio2) + p.ControlPoint2;
         _pitchDuration = p.Time;        
     }
 
@@ -132,7 +137,7 @@ public class BallControl : MonoBehaviour
             t += Time.deltaTime / _pitchDuration;
             t = Mathf.Clamp01(t); // tを0～1の範囲に制限
 
-            this.transform.position = BezierPoint(_startPos.position, _controlPoint1, _controlPoint2, _endPos.position, t);
+            this.transform.position = BezierPoint(_startPoint, _controlPoint1, _controlPoint2, _endPos.position, t);
 
             yield return null; // 次のフレームまで待機
         }
@@ -142,13 +147,15 @@ public class BallControl : MonoBehaviour
         _bj.IsPitching();
         _bj.StrikeJudge();
         
-        yield return new WaitForSeconds(10f);
         _moveBallMesh.enabled = false;
         _pitcherBallMesh.enabled = true;
+        _startPoint = Vector3.zero;
+        _meetRenderer.enabled = true;
     }
 
     public void StopBall()
     {
+        _meetRenderer.enabled = true;
         StopAllCoroutines();
     }
 
@@ -173,20 +180,20 @@ public class BallControl : MonoBehaviour
 
     private void OnDrawGizmos()
     {
-        if (_startPos != null && _endPos != null)
+        if (_startPoint != Vector3.zero && _endPos != null)
         {
             // 制御点が計算済みの場合のみ表示
             if (_controlPoint1 != Vector3.zero || _controlPoint2 != Vector3.zero)
             {
                 Gizmos.color = Color.red;
-                Gizmos.DrawSphere(_startPos.position, 0.05f);
+                Gizmos.DrawSphere(_startPoint, 0.05f);
                 Gizmos.DrawSphere(_controlPoint1, 0.05f);
                 Gizmos.DrawSphere(_controlPoint2, 0.05f);
                 Gizmos.DrawSphere(_endPos.position, 0.05f);
 
                 // 制御線を描画
                 Gizmos.color = Color.gray;
-                Gizmos.DrawLine(_startPos.position, _controlPoint1);
+                Gizmos.DrawLine(_startPoint, _controlPoint1);
                 Gizmos.DrawLine(_controlPoint1, _controlPoint2);
                 Gizmos.DrawLine(_controlPoint2, _endPos.position);
             }
