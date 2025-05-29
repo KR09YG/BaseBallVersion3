@@ -17,7 +17,10 @@ public class Batting : MonoBehaviour
         {
             Debug.Log("Swing");
             float timing = _battingCalculation.CalculatePositionBasedTiming(
-                _ballControl.transform.position, _batCoreTransform.position);
+                _ballControl.transform.position,
+                _batCoreTransform.position,
+                _battingCalculation.CurrentType
+                );
             Debug.Log(timing);
 
             if (timing != 0)
