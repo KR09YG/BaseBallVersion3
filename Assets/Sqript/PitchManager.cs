@@ -4,9 +4,15 @@ public class PitchManager : MonoBehaviour
 {
     [SerializeField] Animator _anim;
     [SerializeField] BallControl _ball;
+    Vector3 _pitchPos;
+
+    private void Start()
+    {
+        _pitchPos = this.transform.position;
+    }
     public void StartPitch()
     {
-        Debug.Log("アニメーションスタート");
+        Debug.Log("アニメーションスタート");        
         _anim.SetTrigger("isPitch");
     }
 
@@ -22,6 +28,7 @@ public class PitchManager : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.S))
         {
             StartPitch();
+            this.transform.position = _pitchPos;
         }
     }
 }
