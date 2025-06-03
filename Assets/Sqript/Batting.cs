@@ -5,6 +5,7 @@ public class Batting : MonoBehaviour
     [SerializeField] private BattingCalculation _battingCalculation;
     [SerializeField] private Rigidbody _ballRb;
     [SerializeField] private Transform _batCoreTransform;
+    [SerializeField] private CursorController _cursorController;
     [SerializeField] private BallControl _ballControl;
     [SerializeField] private float _swingInterval;
     private float _timer = 0;
@@ -13,7 +14,7 @@ public class Batting : MonoBehaviour
     {
         _timer += Time.deltaTime;
 
-        if (Input.GetMouseButtonDown(0) && _timer > _swingInterval)
+        if (Input.GetMouseButtonDown(0) && _timer > _swingInterval && _cursorController.IsCursorInZone)
         {
             Debug.Log("Swing");
         }

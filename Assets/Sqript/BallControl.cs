@@ -8,11 +8,15 @@ public class BallControl : MonoBehaviour
     [SerializeField, Header("終点")] private Transform _endPos;
     private Vector3 _startPoint;
 
+
     [SerializeField] private MeshRenderer _meetRenderer;
 
     [SerializeField] private List<PitchSettings> _controlPointsList;
 
     [SerializeField] private PitchType _pitchType;
+
+    [SerializeField] private Transform _ballDisplayTransform;
+    Vector3 _ballDisplaySize;
 
     [SerializeField] private MeshRenderer _moveBallMesh;
     [SerializeField] private MeshRenderer _pitcherBallMesh;
@@ -52,6 +56,8 @@ public class BallControl : MonoBehaviour
     private void Start()
     {
         PichTypeCount = Enum.GetValues(typeof(PitchType)).Length;
+        _ballDisplaySize = _ballDisplayTransform.localScale;
+        _ballDisplayTransform.localScale = Vector3.zero;
     }
 
     public void Pitching()
@@ -66,7 +72,7 @@ public class BallControl : MonoBehaviour
         //_endPosのx,y座標をランダムに決定
         float x = UnityEngine.Random.Range(-0.4f, 1.0f);
         float y = UnityEngine.Random.Range(0.6f, 2.0f);
-        _endPos.position = new Vector3(x, y,_endPos.position.z);
+        _endPos.position = new Vector3(x, y, _endPos.position.z);
 
         switch (random)
         {
@@ -120,7 +126,7 @@ public class BallControl : MonoBehaviour
 
         _controlPoint1 = Vector3.Lerp(_startPoint, _endPos.position, p.PathControlRatio1) + p.ControlPoint;
         _controlPoint2 = Vector3.Lerp(_startPoint, _endPos.position, p.PathControlRatio2) + p.ControlPoint2;
-        _pitchDuration = p.Time;        
+        _pitchDuration = p.Time;
     }
 
     /// <summary>
@@ -130,6 +136,7 @@ public class BallControl : MonoBehaviour
     {
         _pitcherBallMesh.enabled = false;
         _moveBallMesh.enabled = true;
+        _ballDisplayTransform.localScale = _ballDisplaySize;
         float t = 0;
 
         while (t < 1.0f)
@@ -146,9 +153,10 @@ public class BallControl : MonoBehaviour
         _rb.linearVelocity = Vector3.zero;
         _bj.IsPitching();
         _bj.StrikeJudge();
-        
+
         _moveBallMesh.enabled = false;
         _pitcherBallMesh.enabled = true;
+        _ballDisplayTransform.localScale = Vector3.zero;
         _startPoint = Vector3.zero;
         _meetRenderer.enabled = true;
     }
@@ -156,6 +164,7 @@ public class BallControl : MonoBehaviour
     public void StopBall()
     {
         _meetRenderer.enabled = true;
+        _ballDisplayTransform.localScale = Vector3.zero;
         StopAllCoroutines();
     }
 

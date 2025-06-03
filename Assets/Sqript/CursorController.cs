@@ -9,6 +9,7 @@ public class CursorController : MonoBehaviour
     [SerializeField] private LayerMask _meetareaLayer;
     [SerializeField] private Transform _cursorPosition;
     private bool _isCursor = false;
+    public bool IsCursorInZone { get; private set; }
 
     private void Start()
     {
@@ -22,6 +23,11 @@ public class CursorController : MonoBehaviour
         {
             _cursorImage.rectTransform.position = Input.mousePosition;
             _cursorPosition.position = hitInfo.point;
+            IsCursorInZone = true;
+        }
+        else
+        {
+            IsCursorInZone = false;
         }
 
         if (Input.GetMouseButtonDown(1))
