@@ -30,10 +30,13 @@ public class CursorController : MonoBehaviour
             IsCursorInZone = false;
         }
 
-        if (Input.GetMouseButtonDown(1))
+        if (IsCursorInZone)
         {
-            _isCursor = !_isCursor;
-            Cursor.visible = _isCursor;
+            Cursor.visible = false;
+        }
+        else
+        {
+            Cursor.visible = true;
         }
     }
 
