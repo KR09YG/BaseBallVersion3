@@ -13,11 +13,6 @@ public class Batting : MonoBehaviour
     private void Update()
     {
         _timer += Time.deltaTime;
-
-        if (Input.GetMouseButtonDown(0) && _timer > _swingInterval && _cursorController.IsCursorInZone)
-        {
-            Debug.Log("Swing");
-        }
     }
 
     public void BattingBall()

@@ -5,23 +5,18 @@ using UnityEngine;
 public class BatterAnimationControl : MonoBehaviour
 {
     [SerializeField] Animator _batterAnim;
-
     [SerializeField] Batting _batting;
-
     [SerializeField] AimIK _aimIK;
-
     [SerializeField] CursorController _cursorController;
 
     private Quaternion _batterStartQuaternion;
     private Vector3 _batterStartPosition;
 
-
-
     private void Start()
     {
         _batterStartQuaternion = transform.rotation;
         _batterStartPosition = transform.position;
-        _aimIK.enabled = false;
+        //_aimIK.enabled = false;
     }
     private void Update()
     {

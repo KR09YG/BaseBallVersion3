@@ -1945,13 +1945,26 @@ MonoBehaviour:
   _basePower: 30
   _baseHihgt: 1
   _batterTypeText: {fileID: 1288371176}
-  _perfectRange: 0.7
+  _perfectRange: 0.5
   _goodRange: 1.2
   _fairRange: 1.7
   _maxRange: 2
   _perfectMultiplier: 1.6
-  _goodMultiplier: 1.4
-  _fairMultiplier: 1
+  _goodMultiplier: 1.2
+  _fairMultiplier: 0.8
+  _accuracyRanges:
+  - Type: 0
+    MinRange: 0.9
+    MaxRange: 1
+  - Type: 1
+    MinRange: 0.7
+    MaxRange: 0.9
+  - Type: 2
+    MinRange: 0.4
+    MaxRange: 0.7
+  - Type: 3
+    MinRange: 0
+    MaxRange: 0.4
   _battingXMultiplier: 50
   _battingYMultiplier: 5
 --- !u!114 &802164523
@@ -2347,7 +2360,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1073304988}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 5013856973b27429d937d256dc082f2e, type: 3}
   m_Name: 

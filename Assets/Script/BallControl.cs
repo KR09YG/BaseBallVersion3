@@ -71,7 +71,7 @@ public class BallControl : MonoBehaviour
         int random = UnityEngine.Random.Range(0, PichTypeCount);
         //_endPosのx,y座標をランダムに決定
         float x = UnityEngine.Random.Range(-0.4f, 1.0f);
-        float y = UnityEngine.Random.Range(0.6f, 2.0f);
+        float y = UnityEngine.Random.Range(0.8f, 2.2f);
         _endPos.position = new Vector3(x, y, _endPos.position.z);
 
         switch (random)

@@ -23,6 +23,10 @@ public class BattingCalculation : MonoBehaviour
     [SerializeField] private float _goodMultiplier;
     [SerializeField] private float _fairMultiplier;
 
+    private const float _timingAccuracyMax = 1.0f; // タイミングの精度の最大値
+    private const float _timingAccuracyMin = 0.0f; // タイミングの精度の最小値
+    [Header("タイミング精度の範囲"), SerializeField] private List<AccuracyRange> _accuracyRanges;
+
     [Header("打球のx方向に対する倍率"), SerializeField] private float _battingXMultiplier;
     [Header("打球のy方向に対する倍率"), SerializeField] private float _battingYMultiplier;
 
@@ -35,6 +39,23 @@ public class BattingCalculation : MonoBehaviour
         PullHit,      // 引っ張り
         OppositeHit,  // 流し打ち
         AimHomeRun    // 一発狙い
+    }
+
+    public enum AccuracyType
+    {
+        Perfect,      // 完璧な当たり
+        Good,         // 良い当たり
+        Fair,         // 普通の当たり
+        Bad,          // 悪い当たり
+        Miss          // ミス（当たらない）
+    }
+
+    [Serializable]
+    public class AccuracyRange
+    {
+        public AccuracyType Type;  // タイミングの種類
+        public float MinRange;
+        public float MaxRange;
     }
 
     [Serializable]
@@ -66,17 +87,22 @@ public class BattingCalculation : MonoBehaviour
         // ボールと理想的なコンタクトポイントの距離を計算
         float distance = Vector3.Distance(ballPosition, batCore);
 
+        var parfectRange = _accuracyRanges.Find(x => x.Type == AccuracyType.Perfect);
+        var goodRange = _accuracyRanges.Find(x => x.Type == AccuracyType.Good);
+        var fairRange = _accuracyRanges.Find(x => x.Type == AccuracyType.Fair);
+        var badRange = _accuracyRanges.Find(x => x.Type == AccuracyType.Bad);
+
         //AimHomeRunの場合はgoodの範囲内であればホームランになるようにする
         //ただしホームラン性のあるボールもしくはファールしか打てない
         if (_currentBattingParameter.Type == BattingType.AimHomeRun)
         {
             if (distance <= _goodRange * _currentBattingParameter.ContactRangeMultiplier)
             {
-                return Mathf.Lerp(0.9f, 1.0f, 1.0f - (distance / _perfectRange)) * _perfectMultiplier;
+                return Mathf.Lerp(parfectRange.MinRange, parfectRange.MaxRange, _timingAccuracyMax - (distance / _perfectRange)) * _perfectMultiplier;
             }
             else
             {
-                return 0.0f;
+                return _timingAccuracyMin;
             }
         }
 
@@ -85,31 +111,31 @@ public class BattingCalculation : MonoBehaviour
         {
             // 完璧なコンタクト (0.9〜1.0)
             Debug.Log("perfect");
-            return Mathf.Lerp(0.9f, 1.0f, 1.0f - (distance / _perfectRange)) * _perfectMultiplier;
+            return Mathf.Lerp(parfectRange.MinRange, parfectRange.MaxRange, _timingAccuracyMax - (distance / _perfectRange)) * _perfectMultiplier;
         }
         else if (distance <= _goodRange * _currentBattingParameter.ContactRangeMultiplier)
         {
             // 良いコンタクト (0.7〜0.9)
             Debug.Log("good");
-            return Mathf.Lerp(0.7f, 0.9f, 1.0f - ((distance - _perfectRange) / (_goodRange - _perfectRange))) * _goodMultiplier;
+            return Mathf.Lerp(goodRange.MinRange, goodRange.MaxRange, _timingAccuracyMax - ((distance - _perfectRange) / (_goodRange - _perfectRange))) * _goodMultiplier;
         }
         else if (distance <= _fairRange * _currentBattingParameter.ContactRangeMultiplier)
         {
             // 普通のコンタクト (0.4〜0.7)
             Debug.Log("fair");
-            return Mathf.Lerp(0.4f, 0.7f, 1.0f - ((distance - _goodRange) / (_fairRange - _goodRange))) * _fairMultiplier;
+            return Mathf.Lerp(fairRange.MinRange, fairRange.MaxRange, _timingAccuracyMax - ((distance - _goodRange) / (_fairRange - _goodRange))) * _fairMultiplier;
         }
         else if (distance <= _maxRange * _currentBattingParameter.ContactRangeMultiplier)
         {
             // 悪いコンタクト (0.0〜0.4)
             Debug.Log("bad");
-            return Mathf.Lerp(0.0f, 0.4f, 1.0f - ((distance - _fairRange) / (_maxRange - _fairRange)));
+            return Mathf.Lerp(badRange.MinRange, badRange.MaxRange, _timingAccuracyMax - ((distance - _fairRange) / (_maxRange - _fairRange)));
         }
         else
         {
             // ミス（コンタクトなし）
             Debug.Log("miss");
-            return 0.0f;
+            return _timingAccuracyMin;
         }
     }
 
@@ -128,7 +154,7 @@ public class BattingCalculation : MonoBehaviour
         float battingPower = _basePower * timing * _currentBattingParameter.PowerMultiplier;
         Vector3 battingDirection = new Vector3(
             xDistance * _battingXMultiplier + _currentBattingParameter.DirectionXModifier,
-            timing * _baseHihgt * _currentBattingParameter.DirectionYModifier + yDistance * _battingYMultiplier,
+            timing * _baseHihgt * _currentBattingParameter.DirectionYModifier * _battingYMultiplier + yDistance,
             Mathf.Lerp(-5f, 10f, timing) * -1　//-1をかけているのはzが負の時前方であるため
             ).normalized;
 
@@ -145,22 +171,22 @@ public class BattingCalculation : MonoBehaviour
         {
             case "Normal":
                 CurrentType = BattingType.Normal;
-                _currentBattingParameter = 
+                _currentBattingParameter =
                     _battingTypeData.Find(x => x.Type == BattingType.Normal);
                 break;
             case "PullHit":
                 CurrentType = BattingType.PullHit;
-                _currentBattingParameter = 
+                _currentBattingParameter =
                     _battingTypeData.Find(x => x.Type == BattingType.PullHit);
                 break;
             case "OppositeHit":
                 CurrentType = BattingType.OppositeHit;
-                _currentBattingParameter = 
+                _currentBattingParameter =
                     _battingTypeData.Find(x => x.Type == BattingType.OppositeHit);
                 break;
             case "AimHomeRun":
                 CurrentType = BattingType.AimHomeRun;
-                _currentBattingParameter = 
+                _currentBattingParameter =
                     _battingTypeData.Find(x => x.Type == BattingType.AimHomeRun);
                 break;
             default:

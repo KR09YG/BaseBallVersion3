@@ -39,9 +39,4 @@ public class CursorController : MonoBehaviour
             Cursor.visible = true;
         }
     }
-
-    void OnDrawGizmos()
-    {
-        Gizmos.DrawWireCube(_cursorPosition.position, new Vector3(1,1,1));
-    }
 }
