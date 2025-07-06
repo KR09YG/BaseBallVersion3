@@ -30,7 +30,9 @@ public class BattingCalculation : MonoBehaviour
     [Header("打球のx方向に対する倍率"), SerializeField] private float _battingXMultiplier;
     [Header("打球のy方向に対する倍率"), SerializeField] private float _battingYMultiplier;
 
-    BattingTypeParameters _currentBattingParameter;
+    private BattingTypeParameters _currentBattingParameter;
+
+    private AccuracyType _resultAccuracyType;
 
     public BattingType CurrentType { get; private set; }
     public enum BattingType
@@ -47,7 +49,8 @@ public class BattingCalculation : MonoBehaviour
         Good,         // 良い当たり
         Fair,         // 普通の当たり
         Bad,          // 悪い当たり
-        Miss          // ミス（当たらない）
+        Miss,          // ミス（当たらない）
+        Default
     }
 
     [Serializable]
@@ -77,6 +80,17 @@ public class BattingCalculation : MonoBehaviour
     }
 
     /// <summary>
+    /// ヒット精度のタイプを送信する
+    /// </summary>
+    /// <returns></returns>
+    public AccuracyType PassResultAccuracy()
+    {
+        var r = _resultAccuracyType;
+        _resultAccuracyType = AccuracyType.Default; // 結果をリセット
+        return r;
+    }
+
+    /// <summary>
     /// タイミングのジャスト度を計算する
     /// </summary>
     /// <param name="ballPosition"></param>
@@ -87,10 +101,10 @@ public class BattingCalculation : MonoBehaviour
         // ボールと理想的なコンタクトポイントの距離を計算
         float distance = Vector3.Distance(ballPosition, batCore);
 
-        var parfectRange = _accuracyRanges.Find(x => x.Type == AccuracyType.Perfect);
-        var goodRange = _accuracyRanges.Find(x => x.Type == AccuracyType.Good);
-        var fairRange = _accuracyRanges.Find(x => x.Type == AccuracyType.Fair);
-        var badRange = _accuracyRanges.Find(x => x.Type == AccuracyType.Bad);
+        var parfectRange = _accuracyRanges[0];// 完璧な当たりの範囲
+        var goodRange = _accuracyRanges[1];// 良い当たりの範囲
+        var fairRange = _accuracyRanges[2];// 普通の当たりの範囲
+        var badRange = _accuracyRanges[3];// 悪い当たりの範囲
 
         //AimHomeRunの場合はgoodの範囲内であればホームランになるようにする
         //ただしホームラン性のあるボールもしくはファールしか打てない
@@ -111,18 +125,21 @@ public class BattingCalculation : MonoBehaviour
         {
             // 完璧なコンタクト (0.9〜1.0)
             Debug.Log("perfect");
+            _resultAccuracyType = AccuracyType.Perfect;
             return Mathf.Lerp(parfectRange.MinRange, parfectRange.MaxRange, _timingAccuracyMax - (distance / _perfectRange)) * _perfectMultiplier;
         }
         else if (distance <= _goodRange * _currentBattingParameter.ContactRangeMultiplier)
         {
             // 良いコンタクト (0.7〜0.9)
             Debug.Log("good");
+            _resultAccuracyType = AccuracyType.Good;
             return Mathf.Lerp(goodRange.MinRange, goodRange.MaxRange, _timingAccuracyMax - ((distance - _perfectRange) / (_goodRange - _perfectRange))) * _goodMultiplier;
         }
         else if (distance <= _fairRange * _currentBattingParameter.ContactRangeMultiplier)
         {
             // 普通のコンタクト (0.4〜0.7)
             Debug.Log("fair");
+            _resultAccuracyType = AccuracyType.Fair;
             return Mathf.Lerp(fairRange.MinRange, fairRange.MaxRange, _timingAccuracyMax - ((distance - _goodRange) / (_fairRange - _goodRange))) * _fairMultiplier;
         }
         else if (distance <= _maxRange * _currentBattingParameter.ContactRangeMultiplier)
@@ -135,6 +152,7 @@ public class BattingCalculation : MonoBehaviour
         {
             // ミス（コンタクトなし）
             Debug.Log("miss");
+            _resultAccuracyType = AccuracyType.Miss;
             return _timingAccuracyMin;
         }
     }
