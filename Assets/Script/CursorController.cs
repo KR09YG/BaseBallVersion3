@@ -8,6 +8,7 @@ public class CursorController : MonoBehaviour
     [SerializeField] private Image _cursorImage;
     [SerializeField] private LayerMask _meetareaLayer;
     [SerializeField] private Transform _cursorPosition;
+    public Transform CursorPosition => _cursorPosition;
     private bool _isCursor = false;
     public bool IsCursorInZone { get; private set; }
 
@@ -23,19 +24,12 @@ public class CursorController : MonoBehaviour
         {
             _cursorImage.rectTransform.position = Input.mousePosition;
             _cursorPosition.position = hitInfo.point;
+            Cursor.visible = false;
             IsCursorInZone = true;
         }
         else
         {
             IsCursorInZone = false;
-        }
-
-        if (IsCursorInZone)
-        {
-            Cursor.visible = false;
-        }
-        else
-        {
             Cursor.visible = true;
         }
     }
