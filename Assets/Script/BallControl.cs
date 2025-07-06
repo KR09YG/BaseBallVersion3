@@ -142,7 +142,6 @@ public class BallControl : MonoBehaviour
         while (t < 1.0f)
         {
             t += Time.deltaTime / _pitchDuration;
-            t = Mathf.Clamp01(t); // tを0～1の範囲に制限
 
             this.transform.position = BezierPoint(_startPoint, _controlPoint1, _controlPoint2, _endPos.position, t);
 
