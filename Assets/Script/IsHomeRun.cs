@@ -1,22 +1,19 @@
+using System;
 using UnityEngine;
 
 public class IsHomeRun : MonoBehaviour
 {
     [SerializeField] Animator _homerunTextAnim;
+    [SerializeField] Transform _homerunLine;
+    public Action OnHomeRun;
 
-    private void Update()
+    private void Start()
     {
-        if (Input.GetKeyDown(KeyCode.Escape))
-        {
-            _homerunTextAnim.Play("HomeRunTextAnim");
-        }
+        OnHomeRun += () => _homerunTextAnim.Play("HomeRunTextAnim"); ;
     }
-    private void OnTriggerEnter(Collider other)
+
+    public bool HomeRunCheck(Vector3 landingPos)
     {
-        Debug.Log(other.tag);
-        if (other.gameObject.CompareTag("Ball"))
-        {
-            _homerunTextAnim.Play("HomeRunTextAnim");
-        }
+        return _homerunLine.position.magnitude < landingPos.magnitude;
     }
 }
