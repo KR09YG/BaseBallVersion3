@@ -42,4 +42,9 @@ public class BattingData : ScriptableObject
     public float GoodHeight;
     public float FairHeight;
     public float BadHeight;
+
+    [Header("HitType‚ğ”»’è‚·‚é‚½‚ß‚Ì‘Å‚¿ã‚°Šp“x‚ÌŠî€")]
+    public float GroundBallAngle;
+    public float LineDriveAngle;
+    public float FlyBallAngle;
 }

@@ -96,6 +96,8 @@ public class BattingResultCalculator : MonoBehaviour
         resultData.LaunchAngle = CalculateLaunchAngle(resultData.ActualDirection);
         resultData.LaunchDirection = CalculateLaunchDirection(resultData.ActualDirection);
 
+        resultData.HittingType = DetermineHittingType(resultData);
+
         if (_showCalculationLogs)
         {
             Debug.Log($"角度: 打ち上げ={resultData.LaunchAngle:F1}°, 方向={resultData.LaunchDirection:F1}°");
@@ -114,6 +116,21 @@ public class BattingResultCalculator : MonoBehaviour
         return Mathf.Max(power, 0f); // パワーは0以上に制限
     }
 
+    private BattingResultData.HitType DetermineHittingType(BattingResultData resultData)
+    {
+        if ( resultData.LaunchAngle < _battingData.GroundBallAngle)
+        {
+            return BattingResultData.HitType.GroundBall;
+        }
+        else if (resultData.LaunchAngle < _battingData.LineDriveAngle)
+        {
+            return BattingResultData.HitType.LineDrive;
+        }
+        else
+        {
+            return BattingResultData.HitType.FlyBall;
+        }
+    }
     /// <summary>
     /// 実際の打球方向を計算
     /// </summary>

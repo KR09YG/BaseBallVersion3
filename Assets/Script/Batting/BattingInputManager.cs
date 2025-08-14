@@ -26,7 +26,6 @@ public class TrajectoryData
         GroundBall,
         LineDrive,
         FlyBall,
-        PopFly,
         HomeRun
     }
 }
@@ -81,6 +80,17 @@ public class BattingResultData
     /// 打球方向（水平角度）
     /// </summary>
     public float LaunchDirection;
+
+    public HitType HittingType; // 打球の種類
+
+    public enum HitType
+    {
+        GroundBall,
+        LineDrive,
+        FlyBall,
+        PopFly,
+        HomeRun
+    }
 }
 
 public class BattingInputManager : MonoBehaviour
@@ -99,6 +109,8 @@ public class BattingInputManager : MonoBehaviour
 
     private BattingInputData _inputData;
 
+    
+
     IEnumerator _tempCoroutine;
 
     public List<Vector3> _trajectoryPoints { get; private set; } = new List<Vector3>();
@@ -111,6 +123,7 @@ public class BattingInputManager : MonoBehaviour
             _ballControl.StopBall();
             _trajectoryPoints = _atc.TrajectoryCalculate(_resultData, _inputData, out Vector3 landingPoint, out float flightTime);
             Debug.Log($"打球の落下点: {landingPoint}, 飛行時間: {flightTime}秒");
+            Debug.Log($"打球タイプ: {_resultData.HittingType}");
             _tempCoroutine = _bbm.BattingMove(_trajectoryPoints, landingPoint);
             StartCoroutine(_tempCoroutine);
         }
