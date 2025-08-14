@@ -21,9 +21,11 @@ public class BallControl : MonoBehaviour
     [SerializeField] private MeshRenderer _moveBallMesh;
     [SerializeField] private MeshRenderer _pitcherBallMesh;
 
-    [SerializeField] private Rigidbody _rb;
+    //[SerializeField] private Rigidbody _rb;
 
     [SerializeField] private BallJudge _bj;
+
+    public float BallPitchProgress {get; private set; }
     public int PichTypeCount { get; private set; }
     /// <summary>
     /// 制御点
@@ -142,14 +144,14 @@ public class BallControl : MonoBehaviour
         while (t < 1.0f)
         {
             t += Time.deltaTime / _pitchDuration;
-
+            BallPitchProgress = t;
             this.transform.position = BezierPoint(_startPoint, _controlPoint1, _controlPoint2, _endPos.position, t);
 
             yield return null; // 次のフレームまで待機
         }
 
-        _rb.angularVelocity = Vector3.zero;
-        _rb.linearVelocity = Vector3.zero;
+        //_rb.angularVelocity = Vector3.zero;
+        //_rb.linearVelocity = Vector3.zero;
         _bj.IsPitching();
         _bj.StrikeJudge();
 
@@ -186,25 +188,32 @@ public class BallControl : MonoBehaviour
         return p;
     }
 
-    private void OnDrawGizmos()
-    {
-        if (_startPoint != Vector3.zero && _endPos != null)
-        {
-            // 制御点が計算済みの場合のみ表示
-            if (_controlPoint1 != Vector3.zero || _controlPoint2 != Vector3.zero)
-            {
-                Gizmos.color = Color.red;
-                Gizmos.DrawSphere(_startPoint, 0.05f);
-                Gizmos.DrawSphere(_controlPoint1, 0.05f);
-                Gizmos.DrawSphere(_controlPoint2, 0.05f);
-                Gizmos.DrawSphere(_endPos.position, 0.05f);
+    //private void OnDrawGizmos()
+    //{     
+    //    for (float t = 0; t <= 10; t+= 0.1f)
+    //    {
+    //        if (t == 0.8f) Gizmos.color = Color.green;
+    //        else Gizmos.color = Color.blue;
+    //        Gizmos.DrawSphere( BezierPoint(_startPoint, _controlPoint1, _controlPoint2, _endPos.position, t),0.05f);
+    //    }
 
-                // 制御線を描画
-                Gizmos.color = Color.gray;
-                Gizmos.DrawLine(_startPoint, _controlPoint1);
-                Gizmos.DrawLine(_controlPoint1, _controlPoint2);
-                Gizmos.DrawLine(_controlPoint2, _endPos.position);
-            }
-        }
-    }
+    //    if (_startPoint != Vector3.zero && _endPos != null)
+    //    {
+    //        // 制御点が計算済みの場合のみ表示
+    //        if (_controlPoint1 != Vector3.zero || _controlPoint2 != Vector3.zero)
+    //        {
+    //            Gizmos.color = Color.red;
+    //            Gizmos.DrawSphere(_startPoint, 0.05f);
+    //            Gizmos.DrawSphere(_controlPoint1, 0.05f);
+    //            Gizmos.DrawSphere(_controlPoint2, 0.05f);
+    //            Gizmos.DrawSphere(_endPos.position, 0.05f);
+
+    //            // 制御線を描画
+    //            Gizmos.color = Color.gray;
+    //            Gizmos.DrawLine(_startPoint, _controlPoint1);
+    //            Gizmos.DrawLine(_controlPoint1, _controlPoint2);
+    //            Gizmos.DrawLine(_controlPoint2, _endPos.position);
+    //        }
+    //    }
+    //}
 }
