@@ -2,12 +2,15 @@ using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
 using DG.Tweening;
+using UnityEngine.Playables;
 
 public class BattingBallMove : MonoBehaviour
 {
     [SerializeField] private Transform _ballTransform;
     [SerializeField] private BattingInputManager _bim;
     [SerializeField] private IsHomeRun _isHomeRun;
+    [SerializeField] private PlayableDirector _homerunMovie;
+    [SerializeField] private PlayableDirector _hitMovie;
     [Header("移動間隔（何秒ごとに次のポイントに進むのか）"),SerializeField]
     private float _moveInterval = 0.1f; // ボールの移動間隔
 
@@ -18,7 +21,16 @@ public class BattingBallMove : MonoBehaviour
     {       
         int index = 0;
         bool isHomerun = _isHomeRun.HomeRunCheck(landingPos);
-        Debug.Log(isHomerun ? "ホームラン！" : "ホームランではない");
+        if (isHomerun)
+        {
+            _homerunMovie.Play();
+        }
+        else
+        {
+            _hitMovie.Play();
+        }
+
+            Debug.Log(isHomerun ? "ホームラン！" : "ホームランではない");
         while (index < trajectryData.Count)
         {
             // ボールの位置を更新
