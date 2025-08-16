@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4dc3fb05abd97734aa1d65f56f358fa6, type: 3}
   m_Name: BattingResultSettingData
   m_EditorClassIdentifier: 
-  BasePower: 48
+  BasePower: 50
   BaseHeight: 50
   BattingXMultiplier: 100
   BattingYMultiplier: 1
@@ -28,11 +28,14 @@ MonoBehaviour:
   FairMin: 0.4
   Maxtolerable: 0.1
   TimingReferenceValue: 80
-  PerfectTimingRange: 1.5
-  GoodTimingRange: 3
-  FairTimingRange: 5
-  BadTimingRange: 6
+  PerfectTimingRange: 2
+  GoodTimingRange: 4
+  FairTimingRange: 6
+  BadTimingRange: 7
   PerfectHeight: 50
   GoodHeight: 25
   FairHeight: 15
   BadHeight: 10
+  GroundBallAngle: 10
+  LineDriveAngle: 20
+  FlyBallAngle: 50

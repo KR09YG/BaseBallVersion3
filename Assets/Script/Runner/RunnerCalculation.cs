@@ -17,7 +17,7 @@ public class RunnerCalculation : MonoBehaviour
         float t = startPoint;
         while (t < 1)
         {
-            Debug.Log(t);
+            //Debug.Log(t);
             t += Time.deltaTime / arrivaltime;
             _runnerTransform.position = Vector3.Lerp(nextBase.position, currentBase.position, t);
             yield return _waitForEndOfFrame;

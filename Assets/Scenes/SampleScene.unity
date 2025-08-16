@@ -3968,6 +3968,10 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   _physicsData: {fileID: 11400000, guid: a8a3b5caddfe48646be78c2fdbb610d1, type: 2}
+  _netLayer:
+    serializedVersion: 2
+    m_Bits: 64
+  _ballTransform: {fileID: 1869199555}
   _calculationInterval: 0.01
   _calculationTime: 10
   _groundHeight: 0
@@ -3989,7 +3993,7 @@ MonoBehaviour:
   _isHomeRun: {fileID: 399656971}
   _homerunMovie: {fileID: 1055654321}
   _hitMovie: {fileID: 2119645265}
-  _moveInterval: 0.01
+  _moveInterval: 0.005
 --- !u!4 &809002074 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 1852576806548013000, guid: aefb435dce29300459cd508a40f44b58, type: 3}
@@ -5630,6 +5634,10 @@ PrefabInstance:
       propertyPath: m_ConstrainProportionsScale
       value: 1
       objectReference: {fileID: 0}
+    - target: {fileID: -5522116631014180445, guid: 09eb575d55391974db95fc2a126e3990, type: 3}
+      propertyPath: m_Layer
+      value: 6
+      objectReference: {fileID: 0}
     - target: {fileID: 919132149155446097, guid: 09eb575d55391974db95fc2a126e3990, type: 3}
       propertyPath: m_Name
       value: Baseball field
@@ -5637,6 +5645,10 @@ PrefabInstance:
     - target: {fileID: 919132149155446097, guid: 09eb575d55391974db95fc2a126e3990, type: 3}
       propertyPath: m_IsActive
       value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 3908657252698935440, guid: 09eb575d55391974db95fc2a126e3990, type: 3}
+      propertyPath: m_Layer
+      value: 6
       objectReference: {fileID: 0}
     - target: {fileID: 7953606483559150473, guid: 09eb575d55391974db95fc2a126e3990, type: 3}
       propertyPath: m_IsActive
@@ -8738,6 +8750,7 @@ PlayableDirector:
     value: {fileID: 2061210331}
   m_ExposedReferences:
     m_References:
+    - dc999f01222f48248a299e835a0156b8: {fileID: 419312129}
     - 186db123a9e1c3946ba4f86ec9a3c76d: {fileID: 419312129}
     - 5761bee5aab153c43adb405a9f5aae7c: {fileID: 1672112038}
     - 0c4b2e212e1ab4f4684fcb2de6f03e3e: {fileID: 1672112038}

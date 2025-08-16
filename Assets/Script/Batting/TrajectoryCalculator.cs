@@ -7,11 +7,14 @@ using UnityEngine;
 public class AdvancedTrajectoryCalculator : MonoBehaviour
 {
     [SerializeField] private PhysicsData _physicsData;
+    [SerializeField] private LayerMask _netLayer;
+    [SerializeField] Transform _ballTransform;
     private List<Vector3> _trajectoryPoints = new List<Vector3>();
     private Vector3 _tempPosition = Vector3.zero;
     private Vector3 _beforPosition = Vector3.zero;
     private float _x, _y, _z; // 一時的な座標変数
     private Vector3 _velocity;
+    private Collider[] _colliders;
     [Header("計算間隔（時間）"), SerializeField] private float _calculationInterval = 0.1f;
     [Header("弾道計算の計算時間"), SerializeField] private float _calculationTime;
     [Header("地面の高さ"), SerializeField] private float _groundHeight;
@@ -60,6 +63,9 @@ public class AdvancedTrajectoryCalculator : MonoBehaviour
                 _tempPosition.y = _groundHeight;
                 groundTime = t; // 地面に着地した時間を記録
 
+                _velocity.x *= _physicsData.FrictionCoefficient;
+                _velocity.z *= _physicsData.FrictionCoefficient;
+
                 // 反発係数を適用
                 _velocity.y *= -_physicsData.ReboundCoefficient;
 
@@ -70,6 +76,17 @@ public class AdvancedTrajectoryCalculator : MonoBehaviour
                     isFirstGround = false;
                 }
             }
+
+            _colliders = Physics.OverlapSphere(_tempPosition, _ballTransform.localScale.x, _netLayer);
+
+            // ネットに衝突した場合の処理
+            if (_colliders.Length > 0)
+            {
+                _velocity.x *= -_physicsData.WallReboundCoefficient;
+                _velocity.z *= -_physicsData.WallReboundCoefficient;
+
+            }
+
             //計算した座標をリストに追加
             _trajectoryPoints.Add(_tempPosition);
 

@@ -15,4 +15,5 @@ MonoBehaviour:
   Gravity: 9.8
   AirResistance: 1
   ReboundCoefficient: 0.8
-  FrictionCoefficient: 1
+  FrictionCoefficient: 0.9
+  WallReboundCoefficient: 0.01

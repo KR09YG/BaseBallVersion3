@@ -9,7 +9,7 @@ public class IsHomeRun : MonoBehaviour
 
     private void Start()
     {
-        OnHomeRun += () => _homerunTextAnim.Play("HomeRunTextAnim"); ;
+        OnHomeRun += () => _homerunTextAnim.Play("HomeRunTextAnim");
     }
 
     public bool HomeRunCheck(Vector3 landingPos)

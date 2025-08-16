@@ -99,6 +99,8 @@ public class BattingInputManager : MonoBehaviour
     [SerializeField] private CursorController _cursorController;
     [SerializeField] private BattingResultCalculator _bc;
     [SerializeField] private BattingBallMove _bbm;
+    [SerializeField] private RunnerCalculation _runnerCalculation;
+    [SerializeField] private BaseManager _baseManager;
 
 
     [SerializeField] BattingResultCalculator.BatterTypeSettings _currentBatterType;
@@ -126,6 +128,7 @@ public class BattingInputManager : MonoBehaviour
             Debug.Log($"‘Å‹…ƒ^ƒCƒv: {_resultData.HittingType}");
             _tempCoroutine = _bbm.BattingMove(_trajectoryPoints, landingPoint);
             StartCoroutine(_tempCoroutine);
+            StartCoroutine(_runnerCalculation.RunningCalculate(6f, 0f, _baseManager.HomeBase, _baseManager.FirstBase));
         }
         else
         {
