@@ -10,22 +10,42 @@ public class BallCountManager : MonoBehaviour
     public Action BallEvent;
     public Action StrikeEvent;
     public Action OutEvent;
+    public Action FoulEvent;
 
     private void Start()
     {
         StrikeEvent += StrikeCalled;
         OutEvent += OutCalled;
         BallEvent += BallCalled;
+        FoulEvent += FoulCalled;
     }
 
     private void Update()
     {
         if (Input.GetKeyDown(KeyCode.Space))
-        {
-            StrikeEvent.Invoke();
-            Debug.Log(StrikeCount);
+        { 
+            Debug.Log($"ボールカウント: {BallCount}, ストライクカウント: {StrikeCount}, アウトカウント: {OutCount}");
         }
     }
+
+    public void ResetCounts()
+    {
+        BallCount = 0;
+        StrikeCount = 0;        
+    }
+
+    private void FoulCalled()
+    {
+        if (StrikeCount == 2)
+        {
+            // ファールの演出などをここに追加
+        }
+        else
+        {
+            StrikeCount++;
+        }
+    }
+
     private void StrikeCalled()
     {
         if (StrikeCount < 2)
@@ -38,7 +58,6 @@ public class BallCountManager : MonoBehaviour
             BallCount = 0;
             OutCalled();
         }
-        Debug.Log($"Strike {StrikeCount}");
     }
 
     private void BallCalled()
@@ -52,7 +71,6 @@ public class BallCountManager : MonoBehaviour
             BallCount = 0;
             StrikeCount = 0;
         }
-            Debug.Log($"Ball {BallCount}");
     }
 
     public void OutCalled()
@@ -64,8 +82,8 @@ public class BallCountManager : MonoBehaviour
         else
         {
             OutCount = 0;
+            // ここにチェンジの処理及び演出
         }
-            Debug.Log($"Out {OutCount}");
     }
 
 }

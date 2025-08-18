@@ -1,11 +1,14 @@
 using UnityEngine;
+using UnityEngine.UIElements;
 
 public class BallJudge : MonoBehaviour
 {
     [SerializeField] private GameObject _ball;
+    [SerializeField] private LayerMask _maetLayer;
     public bool IsStrike{get; private set;}
     [SerializeField] private BallCountManager _bcm;
     private bool _isPitching;
+    private Collider[] _colliders;
 
     
     private void OnTriggerEnter(Collider other)
@@ -20,11 +23,20 @@ public class BallJudge : MonoBehaviour
     {
         if (_isPitching)
         {
-            if (Input.GetMouseButtonDown(0))
+            _colliders = Physics.OverlapSphere(transform.position, _ball.transform.localScale.x, _maetLayer);
+            if (_colliders.Length > 0)
             {
                 IsStrike = true;
             }
         }
+    }
+
+    /// <summary>
+    /// バットにボールが当たったときの処理
+    /// </summary>
+    public void HitBall()
+    {
+        _bcm.FoulEvent?.Invoke();
     }
 
     /// <summary>
@@ -35,16 +47,21 @@ public class BallJudge : MonoBehaviour
         _isPitching = !_isPitching;
     }
 
+    public void SwingStrike()
+    {
+        IsStrike = true;
+    }
+
     public void StrikeJudge()
     {
         if (IsStrike)
         {
-            _bcm.StrikeEvent.Invoke();
+            _bcm.StrikeEvent?.Invoke();
             IsStrike = false;
         }
         else
         {
-            _bcm.BallEvent.Invoke();
+            _bcm.BallEvent?.Invoke();
         }
     }
 }
