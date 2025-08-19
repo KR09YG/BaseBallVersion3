@@ -96,25 +96,12 @@ public class BattingResultData
 
 public class BattingInputManager : MonoBehaviour
 {
-    [SerializeField] private BallControl _ballControl;
-    [SerializeField] private CursorController _cursorController;
-    [SerializeField] private BattingResultCalculator _bc;
-    [SerializeField] private BattingBallMove _bbm;
-    [SerializeField] private RunnerCalculation _runnerCalculation;
-    [SerializeField] private BaseManager _baseManager;
-    [SerializeField] private BallJudge _ballJudge;
-
-
     [SerializeField] BattingResultCalculator.BatterTypeSettings _currentBatterType;
-
-    [SerializeField] private AdvancedTrajectoryCalculator _atc;
 
     private BattingResultData _resultData;
 
     private BattingInputData _inputData;
-
     
-
     IEnumerator _tempCoroutine;
 
     public List<Vector3> _trajectoryPoints { get; private set; } = new List<Vector3>();
@@ -124,19 +111,20 @@ public class BattingInputManager : MonoBehaviour
         _inputData = InputData();
         if (_inputData.Accuracy != BattingResultCalculator.AccuracyType.Miss)
         {
-            _ballControl.StopBall();
-            _trajectoryPoints = _atc.TrajectoryCalculate(_resultData, _inputData, out Vector3 landingPoint, out float flightTime);
+            SceneSingleton.BallControlInstance.StopBall();
+            _trajectoryPoints = SceneSingleton.AdvancedTrajectoryCalculatorInstance.TrajectoryCalculate(_resultData, _inputData, out Vector3 landingPoint, out float flightTime);
             Debug.Log($"打球の落下点: {landingPoint}, 飛行時間: {flightTime}秒");
             Debug.Log($"打球タイプ: {_resultData.HittingType}");
-            if (_resultData.HittingType == BattingResultData.HitType.FoulBall) _ballJudge.FoulBall();
-            else _ballJudge.Hit();
-            _tempCoroutine = _bbm.BattingMove(_trajectoryPoints, landingPoint);
+            if (_resultData.HittingType == BattingResultData.HitType.FoulBall) SceneSingleton.BallJudgeInstance.FoulBall();
+            else SceneSingleton.BallJudgeInstance.Hit();
+            _tempCoroutine = SceneSingleton.BattingBallMoveInstance.BattingMove(_trajectoryPoints, landingPoint);
             StartCoroutine(_tempCoroutine);
-            StartCoroutine(_runnerCalculation.RunningCalculate(6f, 0f, _baseManager.HomeBase, _baseManager.FirstBase));
+            StartCoroutine(SceneSingleton.RunnerCalculationInstance.RunningCalculate(
+                6f, 0f, SceneSingleton.BaseManagerInstance.HomeBase, SceneSingleton.BaseManagerInstance.FirstBase));
         }
         else
         {
-            _ballJudge.SwingStrike();
+            SceneSingleton.BallJudgeInstance.SwingStrike();
             Debug.Log("空振り");
         }
     }
@@ -164,13 +152,13 @@ public class BattingInputManager : MonoBehaviour
 
         // タイミング情報
         inputData.InputTime = Time.time;
-        inputData.BallPosition = _ballControl.transform.position;
-        inputData.AtCorePosition = _cursorController.CursorPosition.position;
+        inputData.BallPosition = SceneSingleton.BallControlInstance.transform.position;
+        inputData.AtCorePosition = SceneSingleton.CursorControllerInstance.CursorPosition.position;
         inputData.DistanceFromCore = Vector3.Distance(inputData.BallPosition, inputData.AtCorePosition);
 
         // 精度計算
-        inputData.TimingAccuracy = _bc.CalculatePositionBasedTiming(
-            _ballControl.BallPitchProgress, out BattingResultCalculator.AccuracyType accuracyType);
+        inputData.TimingAccuracy = SceneSingleton.BattingResultCalculatorInstance.CalculatePositionBasedTiming(
+            SceneSingleton.BallControlInstance.BallPitchProgress, out BattingResultCalculator.AccuracyType accuracyType);
         inputData.Accuracy = accuracyType;
         Debug.Log(inputData.TimingAccuracy);
         Debug.Log(inputData.Accuracy);
@@ -178,7 +166,7 @@ public class BattingInputManager : MonoBehaviour
         // プレイヤー設定
         inputData.BatterType = _currentBatterType.Type;
 
-        _resultData = _bc.CalculateBattingResult(inputData);
+        _resultData = SceneSingleton.BattingResultCalculatorInstance.CalculateBattingResult(inputData);
         return inputData;
     }
 

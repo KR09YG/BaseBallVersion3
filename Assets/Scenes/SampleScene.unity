@@ -2018,6 +2018,60 @@ RectTransform:
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0, y: 0}
+--- !u!1 &433936569
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 433936571}
+  - component: {fileID: 433936570}
+  m_Layer: 0
+  m_Name: Singleton
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &433936570
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 433936569}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6c429d5f643015d44ba742f2c9db8724, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _battingInputManager: {fileID: 802164525}
+  _ballControl: {fileID: 1869199551}
+  _cursorController: {fileID: 1494478388}
+  _battingResultCalculator: {fileID: 802164524}
+  _battingBallMove: {fileID: 802164527}
+  _runnerCalculation: {fileID: 1095331755}
+  _baseManager: {fileID: 1095331754}
+  _ballJudge: {fileID: 1494478387}
+  _advancedTrajectoryCalculator: {fileID: 802164526}
+  _ballCountManager: {fileID: 1524959040}
+--- !u!4 &433936571
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 433936569}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 58.815628, y: -1.4698486, z: 45.724854}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &446055805
 GameObject:
   m_ObjectHideFlags: 0
@@ -3999,20 +4053,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 995d17593b827c344a854dc4c1b044ca, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _ballControl: {fileID: 1869199551}
-  _cursorController: {fileID: 1494478388}
-  _bc: {fileID: 802164524}
-  _bbm: {fileID: 802164527}
-  _runnerCalculation: {fileID: 1095331755}
-  _baseManager: {fileID: 1095331754}
-  _ballJudge: {fileID: 1494478387}
   _currentBatterType:
     Type: 0
     PowerMultiplier: 1
     DirectionXModifier: 1
     DirectionYPlusCorrection: 1
     ContactRangeMultiplier: 1
-  _atc: {fileID: 802164526}
 --- !u!114 &802164526
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -4030,7 +4076,6 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 64
   _ballTransform: {fileID: 1869199555}
-  _baseManager: {fileID: 1095331754}
   _calculationInterval: 0.01
   _calculationTime: 10
   _groundHeight: 0
@@ -4049,7 +4094,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   _ballTransform: {fileID: 1869199555}
-  _bim: {fileID: 802164525}
   _isHomeRun: {fileID: 399656971}
   _homerunMovie: {fileID: 1055654321}
   _hitMovie: {fileID: 2119645265}
@@ -4814,8 +4858,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   _batterAnim: {fileID: 1073304990}
   _aimIK: {fileID: 1073304992}
-  _cursorController: {fileID: 1494478388}
-  _battingInputManager: {fileID: 802164525}
   _inputCooldown: 1
 --- !u!95 &1073304990 stripped
 Animator:
@@ -5065,7 +5107,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5f9accf8e56480648a371bc6a524f9e5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _baseManager: {fileID: 1095331754}
   _runnerTransform: {fileID: 1821285619}
 --- !u!4 &1119376750 stripped
 Transform:
@@ -5126,7 +5167,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   _anim: {fileID: 1157347803}
-  _ball: {fileID: 1869199551}
 --- !u!1 &1186011043
 GameObject:
   m_ObjectHideFlags: 0
@@ -5937,7 +5977,6 @@ MonoBehaviour:
   _maetLayer:
     serializedVersion: 2
     m_Bits: 8
-  _bcm: {fileID: 1524959040}
 --- !u!114 &1494478388
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -8956,3 +8995,4 @@ SceneRoots:
   - {fileID: 209728564}
   - {fileID: 1186011044}
   - {fileID: 302338640}
+  - {fileID: 433936571}

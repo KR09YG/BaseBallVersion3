@@ -3,7 +3,6 @@ using UnityEngine;
 
 public class RunnerCalculation : MonoBehaviour
 {
-    [SerializeField] private BaseManager _baseManager;
     [SerializeField] private Transform _runnerTransform;
     private WaitForEndOfFrame _waitForEndOfFrame = new WaitForEndOfFrame();
     /// <summary>

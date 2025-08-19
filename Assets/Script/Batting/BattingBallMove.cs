@@ -7,7 +7,6 @@ using UnityEngine.Playables;
 public class BattingBallMove : MonoBehaviour
 {
     [SerializeField] private Transform _ballTransform;
-    [SerializeField] private BattingInputManager _bim;
     [SerializeField] private IsHomeRun _isHomeRun;
     [SerializeField] private PlayableDirector _homerunMovie;
     [SerializeField] private PlayableDirector _hitMovie;

@@ -6,7 +6,6 @@ public class BallJudge : MonoBehaviour
     [SerializeField] private GameObject _ball;
     [SerializeField] private LayerMask _maetLayer;
     public bool IsStrike{get; private set;}
-    [SerializeField] private BallCountManager _bcm;
     private bool _isPitching;
     private Collider[] _colliders;
 
@@ -33,7 +32,7 @@ public class BallJudge : MonoBehaviour
 
     public void Hit()
     {
-        _bcm.ResetCounts();
+        SceneSingleton.BallCountManagerInstance.ResetCounts();
     }
 
     /// <summary>
@@ -41,7 +40,7 @@ public class BallJudge : MonoBehaviour
     /// </summary>
     public void FoulBall()
     {
-        _bcm.FoulEvent?.Invoke();
+        SceneSingleton.BallCountManagerInstance.FoulEvent?.Invoke();
     }
 
     /// <summary>
@@ -61,12 +60,12 @@ public class BallJudge : MonoBehaviour
     {
         if (IsStrike)
         {
-            _bcm.StrikeEvent?.Invoke();
+            SceneSingleton.BallCountManagerInstance.StrikeEvent?.Invoke();
             IsStrike = false;
         }
         else
         {
-            _bcm.BallEvent?.Invoke();
+            SceneSingleton.BallCountManagerInstance.BallEvent?.Invoke();
         }
     }
 }

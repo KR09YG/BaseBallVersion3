@@ -3,7 +3,6 @@ using UnityEngine;
 public class PitchManager : MonoBehaviour
 {
     [SerializeField] Animator _anim;
-    [SerializeField] BallControl _ball;
     Vector3 _pitchPos;
 
     private void Start()
@@ -19,8 +18,8 @@ public class PitchManager : MonoBehaviour
     public void Release()
     {
         Debug.Log("release");
-        _ball.enabled = true;
-        _ball.Pitching();
+        SceneSingleton.BallControlInstance.enabled = true;
+        SceneSingleton.BallControlInstance.Pitching();
     }
 
     private void Update()
