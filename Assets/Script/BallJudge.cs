@@ -31,10 +31,15 @@ public class BallJudge : MonoBehaviour
         }
     }
 
+    public void Hit()
+    {
+        _bcm.ResetCounts();
+    }
+
     /// <summary>
     /// バットにボールが当たったときの処理
     /// </summary>
-    public void HitBall()
+    public void FoulBall()
     {
         _bcm.FoulEvent?.Invoke();
     }

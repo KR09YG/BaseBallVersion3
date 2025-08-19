@@ -87,6 +87,7 @@ public class BattingResultData
     {
         GroundBall,
         LineDrive,
+        FoulBall,
         FlyBall,
         PopFly,
         HomeRun
@@ -101,6 +102,7 @@ public class BattingInputManager : MonoBehaviour
     [SerializeField] private BattingBallMove _bbm;
     [SerializeField] private RunnerCalculation _runnerCalculation;
     [SerializeField] private BaseManager _baseManager;
+    [SerializeField] private BallJudge _ballJudge;
 
 
     [SerializeField] BattingResultCalculator.BatterTypeSettings _currentBatterType;
@@ -126,12 +128,15 @@ public class BattingInputManager : MonoBehaviour
             _trajectoryPoints = _atc.TrajectoryCalculate(_resultData, _inputData, out Vector3 landingPoint, out float flightTime);
             Debug.Log($"打球の落下点: {landingPoint}, 飛行時間: {flightTime}秒");
             Debug.Log($"打球タイプ: {_resultData.HittingType}");
+            if (_resultData.HittingType == BattingResultData.HitType.FoulBall) _ballJudge.FoulBall();
+            else _ballJudge.Hit();
             _tempCoroutine = _bbm.BattingMove(_trajectoryPoints, landingPoint);
             StartCoroutine(_tempCoroutine);
             StartCoroutine(_runnerCalculation.RunningCalculate(6f, 0f, _baseManager.HomeBase, _baseManager.FirstBase));
         }
         else
         {
+            _ballJudge.SwingStrike();
             Debug.Log("空振り");
         }
     }
@@ -140,7 +145,10 @@ public class BattingInputManager : MonoBehaviour
     {
         if (Input.GetKeyDown(KeyCode.Space))
         {
-            StopCoroutine(_tempCoroutine);
+            if (_tempCoroutine != null)
+            {
+                StopCoroutine(_tempCoroutine);
+            }
         }
     }
 

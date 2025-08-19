@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using Unity.VisualScripting;
 using UnityEditor.Build.Content;
 using UnityEngine;
 
@@ -8,7 +9,8 @@ public class AdvancedTrajectoryCalculator : MonoBehaviour
 {
     [SerializeField] private PhysicsData _physicsData;
     [SerializeField] private LayerMask _netLayer;
-    [SerializeField] Transform _ballTransform;
+    [SerializeField] private Transform _ballTransform;
+    [SerializeField] private BaseManager _baseManager;
     private List<Vector3> _trajectoryPoints = new List<Vector3>();
     private Vector3 _tempPosition = Vector3.zero;
     private Vector3 _beforPosition = Vector3.zero;
@@ -19,6 +21,25 @@ public class AdvancedTrajectoryCalculator : MonoBehaviour
     [Header("弾道計算の計算時間"), SerializeField] private float _calculationTime;
     [Header("地面の高さ"), SerializeField] private float _groundHeight;
     [SerializeField] private GameObject _g;
+    [SerializeField] private Transform t;
+
+    private void Update()
+    {
+        //２秒に一回ｔがファールかどうか確認
+        if (Input.GetKeyDown(KeyCode.Space))
+        {
+            _tempPosition = t.position;
+            Debug.Log(_baseManager.FirstBase.position);
+            if (IsFoul(_tempPosition))
+            {
+                Debug.Log("ファールボール");
+            }
+            else
+            {
+                Debug.Log("フェアボール");
+            }
+        }
+    }
 
     /// <summary>
     /// 弾道計算
@@ -57,7 +78,6 @@ public class AdvancedTrajectoryCalculator : MonoBehaviour
 
             if (_y < 0)
             {
-
                 startPos = _tempPosition;
                 startPos.y = _groundHeight;
                 _tempPosition.y = _groundHeight;
@@ -74,18 +94,20 @@ public class AdvancedTrajectoryCalculator : MonoBehaviour
                     flightTime = t; // 滞空時間を出力パラメータに設定
                     landingpoint = _tempPosition;
                     isFirstGround = false;
+                    Instantiate(_g, landingpoint,Quaternion.identity);
+                    if (IsFoul(landingpoint))
+                    {
+                        Debug.Log("ファールボール");
+                        resultData.HittingType = BattingResultData.HitType.FoulBall;
+                    }
+                    else
+                    {
+                        Debug.Log("フェアボール");
+                    }
                 }
             }
 
-            _colliders = Physics.OverlapSphere(_tempPosition, _ballTransform.localScale.x, _netLayer);
-
-            // ネットに衝突した場合の処理
-            if (_colliders.Length > 0)
-            {
-                _velocity.x *= -_physicsData.WallReboundCoefficient;
-                _velocity.z *= -_physicsData.WallReboundCoefficient;
-
-            }
+            BounceWall();
 
             //計算した座標をリストに追加
             _trajectoryPoints.Add(_tempPosition);
@@ -93,5 +115,32 @@ public class AdvancedTrajectoryCalculator : MonoBehaviour
         }
 
         return _trajectoryPoints;
+    }
+
+    private void BounceWall()
+    {
+        _colliders = Physics.OverlapSphere(_tempPosition, _ballTransform.localScale.x, _netLayer);
+
+        // ネットに衝突した場合の処理
+        if (_colliders.Length > 0)
+        {
+            _velocity.x *= -_physicsData.WallReboundCoefficient;
+            _velocity.z *= -_physicsData.WallReboundCoefficient;
+        }
+    }
+
+    public bool IsFoul(Vector3 landingpoint)
+    {
+        landingpoint -= _baseManager.HomeBase.position;
+        Vector3 firstDir = (_baseManager.FirstBase.position - _baseManager.HomeBase.position).normalized;
+        Vector3 thirdDir = (_baseManager.ThirdBase.position - _baseManager.HomeBase.position).normalized;
+
+        float angleToFirst = Vector3.Angle(firstDir, landingpoint);
+        float angleToThird = Vector3.Angle(thirdDir, landingpoint);
+        float fieldAngle = Vector3.Angle(firstDir, thirdDir); 
+
+        // フェア：両方の角度がフィールド角度以下
+        bool isFair = angleToFirst <= fieldAngle && angleToThird <= fieldAngle;
+        return !isFair;
     }
 }
