@@ -10,17 +10,17 @@ public class BattingBallMove : MonoBehaviour
     [SerializeField] private IsHomeRun _isHomeRun;
     [SerializeField] private PlayableDirector _homerunMovie;
     [SerializeField] private PlayableDirector _hitMovie;
-    [Header("移動間隔（何秒ごとに次のポイントに進むのか）"),SerializeField]
+    [Header("移動間隔（何秒ごとに次のポイントに進むのか）"), SerializeField]
     private float _moveInterval = 0.1f; // ボールの移動間隔
 
     /// <summary>
     /// バッティングのボール移動処理
     /// </summary>
-    public IEnumerator BattingMove(List<Vector3> trajectryData,Vector3 landingPos)
-    {       
+    public IEnumerator BattingMove(List<Vector3> trajectryData, Vector3 landingPos, bool isRePlay)
+    {
         int index = 0;
         bool isHomerun = _isHomeRun.HomeRunCheck(landingPos);
-        if (isHomerun)
+        if (isHomerun && !isRePlay)
         {
             _homerunMovie.Play();
         }
@@ -29,17 +29,27 @@ public class BattingBallMove : MonoBehaviour
             _hitMovie.Play();
         }
 
-            Debug.Log(isHomerun ? "ホームラン！" : "ホームランではない");
+        Debug.Log(isHomerun ? "ホームラン！" : "ホームランではない");
         while (index < trajectryData.Count)
         {
             // ボールの位置を更新
             _ballTransform.DOMove(trajectryData[index], _moveInterval).SetEase(Ease.Linear);
             yield return new WaitForSeconds(_moveInterval);
-            if (isHomerun && trajectryData[index] == landingPos)
+
+            if (isHomerun && trajectryData[index] == landingPos && !isRePlay)
             {
                 Debug.Log("ホームランの位置に到達しました。イベントを発火します。");
                 _isHomeRun.OnHomeRun?.Invoke();
+                break;
             }
+            
+            if (trajectryData[index] == landingPos && isRePlay)
+            {
+                Debug.Log("リプレイを終了します。イベントを発火します。");
+                ServiceLocator.RePlayManagerInstance.RePlayFin?.Invoke();
+                break;
+            }
+
             index++;
         }
     }

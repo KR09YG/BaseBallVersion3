@@ -30,17 +30,20 @@ public class BallJudge : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// 打球がインプレイになった時の処理を行う
+    /// </summary>
     public void Hit()
     {
-        SceneSingleton.BallCountManagerInstance.ResetCounts();
+        ServiceLocator.BallCountManagerInstance.ResetCounts();
     }
 
     /// <summary>
-    /// バットにボールが当たったときの処理
+    /// ファールボールの処理を行う
     /// </summary>
     public void FoulBall()
     {
-        SceneSingleton.BallCountManagerInstance.FoulEvent?.Invoke();
+        ServiceLocator.BallCountManagerInstance.FoulEvent?.Invoke();
     }
 
     /// <summary>
@@ -60,12 +63,12 @@ public class BallJudge : MonoBehaviour
     {
         if (IsStrike)
         {
-            SceneSingleton.BallCountManagerInstance.StrikeEvent?.Invoke();
+            ServiceLocator.BallCountManagerInstance.StrikeEvent?.Invoke();
             IsStrike = false;
         }
         else
         {
-            SceneSingleton.BallCountManagerInstance.BallEvent?.Invoke();
+            ServiceLocator.BallCountManagerInstance.BallEvent?.Invoke();
         }
     }
 }

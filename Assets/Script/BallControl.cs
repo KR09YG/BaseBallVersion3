@@ -36,6 +36,12 @@ public class BallControl : MonoBehaviour
     /// </summary>
     private float _pitchDuration;
 
+    public float MoveBallTime { get; private set; }
+
+    public PitchSettings PitchBallType { get; private set; }
+
+    public IEnumerator PitchBallMoveCoroutine { get; private set; }
+
     [Serializable]
     public class PitchSettings
     {
@@ -60,6 +66,12 @@ public class BallControl : MonoBehaviour
         PichTypeCount = Enum.GetValues(typeof(PitchType)).Length;
         _ballDisplaySize = _ballDisplayTransform.localScale;
         _ballDisplayTransform.localScale = Vector3.zero;
+    }
+
+    public void RePlayPitching()
+    {
+        PitchBallMoveCoroutine = MoveBall();
+        StartCoroutine(PitchBallMoveCoroutine);
     }
 
     public void Pitching()
@@ -92,7 +104,8 @@ public class BallControl : MonoBehaviour
                 break;
         }
         SetupControlPoints();
-        StartCoroutine(MoveBall());
+        PitchBallMoveCoroutine = MoveBall();
+        StartCoroutine(PitchBallMoveCoroutine);
     }
 
     /// <summary>
@@ -101,34 +114,33 @@ public class BallControl : MonoBehaviour
     private void SetupControlPoints()
     {
         Debug.Log("軌道をセットアップ");
-        PitchSettings p;
         switch (_pitchType)
         {
             case PitchType.Fastball:
                 Debug.Log("ストレート");
-                p = _controlPointsList.Find(x => x.Name == "ストレート");
+                PitchBallType = _controlPointsList.Find(x => x.Name == "ストレート");
                 break;
             case PitchType.Curveball:
                 Debug.Log("カーブ");
-                p = _controlPointsList.Find(x => x.Name == "カーブ");
+                PitchBallType = _controlPointsList.Find(x => x.Name == "カーブ");
                 break;
             case PitchType.Slider:
                 Debug.Log("スライダー");
-                p = _controlPointsList.Find(x => x.Name == "スライダー");
+                PitchBallType = _controlPointsList.Find(x => x.Name == "スライダー");
                 break;
             case PitchType.Fork:
                 Debug.Log("フォーク");
-                p = _controlPointsList.Find(x => x.Name == "フォーク");
+                PitchBallType = _controlPointsList.Find(x => x.Name == "フォーク");
                 break;
             default:
                 //ここにない球種が来た場合はストレートとして扱う
-                p = _controlPointsList.Find(x => x.Name == "ストレート");
+                PitchBallType = _controlPointsList.Find(x => x.Name == "ストレート");
                 break;
         }
 
-        _controlPoint1 = Vector3.Lerp(_startPoint, _endPos.position, p.PathControlRatio1) + p.ControlPoint;
-        _controlPoint2 = Vector3.Lerp(_startPoint, _endPos.position, p.PathControlRatio2) + p.ControlPoint2;
-        _pitchDuration = p.Time;
+        _controlPoint1 = Vector3.Lerp(_startPoint, _endPos.position, PitchBallType.PathControlRatio1) + PitchBallType.ControlPoint;
+        _controlPoint2 = Vector3.Lerp(_startPoint, _endPos.position, PitchBallType.PathControlRatio2) + PitchBallType.ControlPoint2;
+        _pitchDuration = PitchBallType.Time;
     }
 
     /// <summary>
@@ -139,19 +151,17 @@ public class BallControl : MonoBehaviour
         _pitcherBallMesh.enabled = false;
         _moveBallMesh.enabled = true;
         _ballDisplayTransform.localScale = _ballDisplaySize;
-        float t = 0;
+        MoveBallTime = 0;
 
-        while (t < 1.0f)
+        while (MoveBallTime < 1.0f)
         {
-            t += Time.deltaTime / _pitchDuration;
-            BallPitchProgress = t;
-            this.transform.position = BezierPoint(_startPoint, _controlPoint1, _controlPoint2, _endPos.position, t);
+            MoveBallTime += Time.deltaTime / _pitchDuration;
+            BallPitchProgress = MoveBallTime;
+            this.transform.position = BezierPoint(_startPoint, _controlPoint1, _controlPoint2, _endPos.position, MoveBallTime);
 
             yield return null; // 次のフレームまで待機
         }
 
-        //_rb.angularVelocity = Vector3.zero;
-        //_rb.linearVelocity = Vector3.zero;
         _bj.IsPitching();
         _bj.StrikeJudge();
 

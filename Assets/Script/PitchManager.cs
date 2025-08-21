@@ -15,11 +15,25 @@ public class PitchManager : MonoBehaviour
         _anim.SetTrigger("isPitch");
     }
 
+    public void RePlayPitch(string animName)
+    {
+        Time.timeScale = 0.5f;
+        Debug.Log("リプレイピッチ: " + animName);
+        _anim.Play(animName);        
+    }
+
+    public void RePlayRelease()
+    {
+        Debug.Log("リプレイリリース");
+        ServiceLocator.RePlayManagerInstance.RePlayRelease();
+    }
+
+
     public void Release()
     {
         Debug.Log("release");
-        SceneSingleton.BallControlInstance.enabled = true;
-        SceneSingleton.BallControlInstance.Pitching();
+        ServiceLocator.BallControlInstance.enabled = true;
+        ServiceLocator.BallControlInstance.Pitching();
     }
 
     private void Update()
