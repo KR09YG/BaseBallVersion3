@@ -8,6 +8,7 @@ public class BallControl : MonoBehaviour
     [SerializeField, Header("終点")] private Transform _endPos;
     private Vector3 _startPoint;
 
+    public bool IsMoveBall { get; private set; } = false;
 
     [SerializeField] private MeshRenderer _meetRenderer;
 
@@ -21,9 +22,6 @@ public class BallControl : MonoBehaviour
     [SerializeField] private MeshRenderer _moveBallMesh;
     [SerializeField] private MeshRenderer _pitcherBallMesh;
 
-    //[SerializeField] private Rigidbody _rb;
-
-    [SerializeField] private BallJudge _bj;
 
     public float BallPitchProgress {get; private set; }
     public int PichTypeCount { get; private set; }
@@ -74,36 +72,35 @@ public class BallControl : MonoBehaviour
         StartCoroutine(PitchBallMoveCoroutine);
     }
 
+    public void SetBallState(bool isMove)
+    {
+        IsMoveBall = isMove;
+    }
+
     public void Pitching()
     {
         Debug.Log("スタートピッチ");
-        _bj.IsPitching();
+        //　ピッチングが始まるタイミングで弾道データなどを初期化
+        ServiceLocator.BattingInputManagerInstance.ResetData();
+        ServiceLocator.BallJudgeInstance.IsPitching();
+        
+        //　ミートゾーンを見えなくする
         _meetRenderer.enabled = false;
         this.transform.position = _releasePoint.position;
         _startPoint = _releasePoint.position;
-        //度の球種を投げるのかをランダムに決定
+        //　どの球種を投げるのかをランダムに決定
         int random = UnityEngine.Random.Range(0, PichTypeCount);
-        //_endPosのx,y座標をランダムに決定
+        //　_endPosのx,y座標をランダムに決定
         float x = UnityEngine.Random.Range(-0.4f, 1.0f);
         float y = UnityEngine.Random.Range(0.8f, 2.2f);
         _endPos.position = new Vector3(x, y, _endPos.position.z);
 
-        switch (random)
-        {
-            case 0:
-                _pitchType = PitchType.Fastball;
-                break;
-            case 1:
-                _pitchType = PitchType.Curveball;
-                break;
-            case 2:
-                _pitchType = PitchType.Slider;
-                break;
-            case 3:
-                _pitchType = PitchType.Fork;
-                break;
-        }
+        _pitchType = (PitchType)random;
+
+        // ベジェ曲線の制御点と到達時間を設定
         SetupControlPoints();
+
+        //　実際にボールを動かす
         PitchBallMoveCoroutine = MoveBall();
         StartCoroutine(PitchBallMoveCoroutine);
     }
@@ -162,8 +159,8 @@ public class BallControl : MonoBehaviour
             yield return null; // 次のフレームまで待機
         }
 
-        _bj.IsPitching();
-        _bj.StrikeJudge();
+        ServiceLocator.BallJudgeInstance.IsPitching();
+        ServiceLocator.BallJudgeInstance.StrikeJudge();
 
         _moveBallMesh.enabled = false;
         _pitcherBallMesh.enabled = true;
@@ -197,33 +194,4 @@ public class BallControl : MonoBehaviour
 
         return p;
     }
-
-    //private void OnDrawGizmos()
-    //{     
-    //    for (float t = 0; t <= 10; t+= 0.1f)
-    //    {
-    //        if (t == 0.8f) Gizmos.color = Color.green;
-    //        else Gizmos.color = Color.blue;
-    //        Gizmos.DrawSphere( BezierPoint(_startPoint, _controlPoint1, _controlPoint2, _endPos.position, t),0.05f);
-    //    }
-
-    //    if (_startPoint != Vector3.zero && _endPos != null)
-    //    {
-    //        // 制御点が計算済みの場合のみ表示
-    //        if (_controlPoint1 != Vector3.zero || _controlPoint2 != Vector3.zero)
-    //        {
-    //            Gizmos.color = Color.red;
-    //            Gizmos.DrawSphere(_startPoint, 0.05f);
-    //            Gizmos.DrawSphere(_controlPoint1, 0.05f);
-    //            Gizmos.DrawSphere(_controlPoint2, 0.05f);
-    //            Gizmos.DrawSphere(_endPos.position, 0.05f);
-
-    //            // 制御線を描画
-    //            Gizmos.color = Color.gray;
-    //            Gizmos.DrawLine(_startPoint, _controlPoint1);
-    //            Gizmos.DrawLine(_controlPoint1, _controlPoint2);
-    //            Gizmos.DrawLine(_controlPoint2, _endPos.position);
-    //        }
-    //    }
-    //}
 }
