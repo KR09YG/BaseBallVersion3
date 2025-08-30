@@ -61,6 +61,7 @@ public class BallControl : MonoBehaviour
 
     private void Start()
     {
+        ServiceLocator.Register(this);
         PichTypeCount = Enum.GetValues(typeof(PitchType)).Length;
         _ballDisplaySize = _ballDisplayTransform.localScale;
         _ballDisplayTransform.localScale = Vector3.zero;
@@ -80,9 +81,7 @@ public class BallControl : MonoBehaviour
     public void Pitching()
     {
         Debug.Log("スタートピッチ");
-        //　ピッチングが始まるタイミングで弾道データなどを初期化
-        ServiceLocator.BattingInputManagerInstance.ResetData();
-        ServiceLocator.BallJudgeInstance.IsPitching();
+        ServiceLocator.Get<BallJudge>().IsPitching();
         
         //　ミートゾーンを見えなくする
         _meetRenderer.enabled = false;
@@ -159,8 +158,8 @@ public class BallControl : MonoBehaviour
             yield return null; // 次のフレームまで待機
         }
 
-        ServiceLocator.BallJudgeInstance.IsPitching();
-        ServiceLocator.BallJudgeInstance.StrikeJudge();
+        ServiceLocator.Get<BallJudge>().IsPitching();
+        ServiceLocator.Get<BallJudge>().StrikeJudge();
 
         _moveBallMesh.enabled = false;
         _pitcherBallMesh.enabled = true;

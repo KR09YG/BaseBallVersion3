@@ -9,6 +9,7 @@ public class IsHomeRun : MonoBehaviour
 
     private void Start()
     {
+        ServiceLocator.Register(this);
         OnHomeRun += () => _homerunTextAnim.Play("HomeRunTextAnim");
     }
 

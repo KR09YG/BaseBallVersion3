@@ -28,7 +28,7 @@ MonoBehaviour:
   FairMin: 0.4
   Maxtolerable: 0.1
   TimingReferenceValue: 80
-  PerfectTimingRange: 2
+  PerfectTimingRange: 15
   GoodTimingRange: 4
   FairTimingRange: 6
   BadTimingRange: 7

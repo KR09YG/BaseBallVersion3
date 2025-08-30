@@ -35,6 +35,11 @@ public class BattingResultCalculator : MonoBehaviour
         public float ContactRangeMultiplier;
     }
 
+    private void Start()
+    {
+        ServiceLocator.Register(this);
+    }
+
     /// <summary>
     /// タイミングのジャスト度を計算する
     /// </summary>

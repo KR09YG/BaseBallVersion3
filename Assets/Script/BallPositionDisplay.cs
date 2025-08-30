@@ -5,6 +5,8 @@ public class BallPositionDisplay : MonoBehaviour
 {
     [SerializeField] Transform _ballTransform;
     [SerializeField] Image _buttonImage;
+    [SerializeField] Slider _slider;
+    [SerializeField] BallControl _ballControl;
     Vector3 _displayPos;
     private bool _isSupport;
 
@@ -17,6 +19,7 @@ public class BallPositionDisplay : MonoBehaviour
         if (_isSupport)
         {
             BallPosDisplay();
+            _slider.value = _ballControl.BallPitchProgress;
         }
     }
 
@@ -31,7 +34,7 @@ public class BallPositionDisplay : MonoBehaviour
         }
         else
         {
-            _buttonImage.color = Color.red;
+            _buttonImage.color = Color.red;           
         }
     }
 

@@ -13,4 +13,9 @@ public class BaseManager : MonoBehaviour
     public Transform SecondBase => _secondBase;
     public Transform ThirdBase => _thirdBase;
 
+    private void Start()
+    {
+        ServiceLocator.Register(this);
+    }
+
 }

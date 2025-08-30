@@ -5,8 +5,10 @@ public class PitchManager : MonoBehaviour
     [SerializeField] Animator _anim;
     Vector3 _pitchPos;
 
+
     private void Start()
     {
+        ServiceLocator.Register(this);
         _pitchPos = this.transform.position;
     }
     public void StartPitch()
@@ -25,15 +27,15 @@ public class PitchManager : MonoBehaviour
     public void RePlayRelease()
     {
         Debug.Log("リプレイリリース");
-        ServiceLocator.RePlayManagerInstance.RePlayRelease();
+        ServiceLocator.Get<RePlayManager>().RePlayRelease();
     }
 
 
     public void Release()
     {
         Debug.Log("release");
-        ServiceLocator.BallControlInstance.enabled = true;
-        ServiceLocator.BallControlInstance.Pitching();
+        ServiceLocator.Get<BallControl>().enabled = true;
+        ServiceLocator.Get<BallControl>().Pitching();
     }
 
     private void Update()

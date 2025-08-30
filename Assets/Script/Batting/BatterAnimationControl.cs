@@ -6,34 +6,48 @@ public class BatterAnimationControl : MonoBehaviour
 {
     [SerializeField] Animator _batterAnim;
     [SerializeField] AimIK _aimIK;
-    [SerializeField] CursorController _cursorController;
-    [SerializeField] BattingInputManager _battingInputManager;
 
     private Quaternion _batterStartQuaternion;
     private Vector3 _batterStartPosition;
     [SerializeField] private float _inputCooldown;
     private float _lastInputTime;
+    private bool _canSwing = true;
 
     private void Start()
     {
+        ServiceLocator.Register(this);
         _batterStartQuaternion = transform.rotation;
         _batterStartPosition = transform.position;
         //_aimIK.enabled = false;
     }
     private void Update()
     {
-        if (Input.GetMouseButtonDown(0) && _cursorController.IsCursorInZone && CanInput())
+        if (!ServiceLocator.Get<BattingInputManager>().CanStartInput) return;
+
+        if (Input.GetMouseButtonDown(0) && CanInput())
         {
-            _batterAnim.SetTrigger("Swing");
-            StartCoroutine(PositionReset());
-            _lastInputTime = Time.time; // 入力時刻を更新
+            _canSwing = CanInput();
+            if (_canSwing)
+            {
+                StartAnim("Swing");
+                ServiceLocator.Get<RePlayManager>().ClickTimeSet(ServiceLocator.Get<BallControl>().MoveBallTime);
+                StartCoroutine(PositionReset());
+                _lastInputTime = Time.time; // 入力時刻を更新
+            }
         }
+    }
+
+    public void StartAnim(string animName)
+    {
+        _batterAnim.Play(animName);
     }
 
     private bool CanInput()
     {
         // クールダウン時間を超えているかつ、カーソルがゾーン内にあるかをチェック
-        return Time.time - _lastInputTime > _inputCooldown && _cursorController.IsCursorInZone;
+        return Time.time - _lastInputTime > _inputCooldown && 
+            ServiceLocator.Get<CursorController>().IsCursorInZone && 
+            !ServiceLocator.Get<BallControl>().IsMoveBall;
     }
 
 
@@ -42,13 +56,18 @@ public class BatterAnimationControl : MonoBehaviour
         _aimIK.enabled = true;
     }
 
-    public void BattingBallCall()
+    public void AimIKReCall()
     {
-        _battingInputManager.StartInput();
         _aimIK.enabled = false;
     }
 
-    IEnumerator PositionReset()
+    public void BattingBallCall()
+    {
+        ServiceLocator.Get<BattingInputManager>().StartInput();
+        AimIKReCall();
+    }
+
+    public IEnumerator PositionReset()
     {
         yield return new WaitForSeconds(0.8f);
         transform.rotation = _batterStartQuaternion;

@@ -14,7 +14,6 @@ public abstract class DefenderBase : MonoBehaviour
     [SerializeField] private Transform _throwPoint;
 
     protected Rigidbody _ballRb;
-    protected Batting _batting;
     protected DefenseState _currentState = DefenseState.Ready;
     protected GameObject _ball;
     protected Vector3 _targetPosition;
@@ -56,15 +55,7 @@ public abstract class DefenderBase : MonoBehaviour
 
     protected virtual void HandleReadyState()
     {
-        if (_batting.IsHit)
-        {
-            _reactionTimer += Time.deltaTime;
-            if (_reactionSpeed < _reactionTimer && IsChaseable())
-            {
-                _currentState = DefenseState.Chasing;
-                _reactionTimer = 0f;
-            }
-        }
+        
     }
     protected virtual void HandleChasingState()
     {

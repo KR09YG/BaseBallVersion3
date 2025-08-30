@@ -22,22 +22,9 @@ public class AdvancedTrajectoryCalculator : MonoBehaviour
     [SerializeField] private GameObject _g;
     [SerializeField] private Transform t;
 
-    private void Update()
+    private void Start()
     {
-        //２秒に一回ｔがファールかどうか確認
-        if (Input.GetKeyDown(KeyCode.Space))
-        {
-            _tempPosition = t.position;
-            Debug.Log(SceneSingleton.BaseManagerInstance.FirstBase.position);
-            if (IsFoul(_tempPosition))
-            {
-                Debug.Log("ファールボール");
-            }
-            else
-            {
-                Debug.Log("フェアボール");
-            }
-        }
+        ServiceLocator.Register(this);
     }
 
     /// <summary>
@@ -123,6 +110,7 @@ public class AdvancedTrajectoryCalculator : MonoBehaviour
         // ネットに衝突した場合の処理
         if (_colliders.Length > 0)
         {
+            Debug.Log("ネットに衝突");
             _velocity.x *= -_physicsData.WallReboundCoefficient;
             _velocity.z *= -_physicsData.WallReboundCoefficient;
         }
@@ -130,9 +118,9 @@ public class AdvancedTrajectoryCalculator : MonoBehaviour
 
     public bool IsFoul(Vector3 landingpoint)
     {
-        landingpoint -= SceneSingleton.BaseManagerInstance.HomeBase.position;
-        Vector3 firstDir = (SceneSingleton.BaseManagerInstance.FirstBase.position - SceneSingleton.BaseManagerInstance.HomeBase.position).normalized;
-        Vector3 thirdDir = (SceneSingleton.BaseManagerInstance.ThirdBase.position - SceneSingleton.BaseManagerInstance.HomeBase.position).normalized;
+        landingpoint -= ServiceLocator.Get<BaseManager>().HomeBase.position;
+        Vector3 firstDir = (ServiceLocator.Get<BaseManager>().FirstBase.position - ServiceLocator.Get<BaseManager>().HomeBase.position).normalized;
+        Vector3 thirdDir = (ServiceLocator.Get<BaseManager>().ThirdBase.position - ServiceLocator.Get<BaseManager>().HomeBase.position).normalized;
 
         float angleToFirst = Vector3.Angle(firstDir, landingpoint);
         float angleToThird = Vector3.Angle(thirdDir, landingpoint);

@@ -12,8 +12,10 @@ public class CursorController : MonoBehaviour
     private bool _isCursor = false;
     public bool IsCursorInZone { get; private set; }
 
+
     private void Start()
     {
+        ServiceLocator.Register(this);
         Cursor.visible = _isCursor;
     }
     void Update()

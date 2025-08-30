@@ -14,6 +14,7 @@ public class BallCountManager : MonoBehaviour
 
     private void Start()
     {
+        ServiceLocator.Register(this);
         StrikeEvent += StrikeCalled;
         OutEvent += OutCalled;
         BallEvent += BallCalled;
