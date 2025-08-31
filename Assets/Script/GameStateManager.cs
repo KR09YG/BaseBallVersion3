@@ -12,9 +12,9 @@ public class GameStateManager : MonoBehaviour
         Result
     }
 
-    private GameState _currentState;
+    private GameState _currentState = GameState.Batting;
 
-    private void Start()
+    private void Awake()
     {
         ServiceLocator.Register(this);
     }
