@@ -3,6 +3,7 @@ using UnityEngine;
 
 public class BallCountManager : MonoBehaviour
 {
+    private BallCountDisplay _ballCountDisplay;
     public int BallCount { get; private set; }
     public int StrikeCount { get; private set; }
     public int OutCount { get; private set; }
@@ -12,9 +13,14 @@ public class BallCountManager : MonoBehaviour
     public Action OutEvent;
     public Action FoulEvent;
 
-    private void Start()
+    private void Awake()
     {
         ServiceLocator.Register(this);
+    }
+
+    private void Start()
+    {
+        _ballCountDisplay = ServiceLocator.Get<BallCountDisplay>();
         StrikeEvent += StrikeCalled;
         OutEvent += OutCalled;
         BallEvent += BallCalled;
@@ -24,7 +30,7 @@ public class BallCountManager : MonoBehaviour
     private void Update()
     {
         if (Input.GetKeyDown(KeyCode.Space))
-        { 
+        {
             Debug.Log($"ボールカウント: {BallCount}, ストライクカウント: {StrikeCount}, アウトカウント: {OutCount}");
         }
     }
@@ -32,7 +38,7 @@ public class BallCountManager : MonoBehaviour
     public void ResetCounts()
     {
         BallCount = 0;
-        StrikeCount = 0;        
+        StrikeCount = 0;
     }
 
     private void FoulCalled()
@@ -45,6 +51,8 @@ public class BallCountManager : MonoBehaviour
         {
             StrikeCount++;
         }
+
+        _ballCountDisplay.BallCountDisplayUpdate();
     }
 
     private void StrikeCalled()
@@ -59,6 +67,8 @@ public class BallCountManager : MonoBehaviour
             BallCount = 0;
             OutCalled();
         }
+        
+        _ballCountDisplay.BallCountDisplayUpdate();
     }
 
     private void BallCalled()
@@ -72,6 +82,8 @@ public class BallCountManager : MonoBehaviour
             BallCount = 0;
             StrikeCount = 0;
         }
+
+        _ballCountDisplay.BallCountDisplayUpdate();
     }
 
     public void OutCalled()
@@ -85,6 +97,8 @@ public class BallCountManager : MonoBehaviour
             OutCount = 0;
             // ここにチェンジの処理及び演出
         }
+
+        _ballCountDisplay.BallCountDisplayUpdate();
     }
 
 }
