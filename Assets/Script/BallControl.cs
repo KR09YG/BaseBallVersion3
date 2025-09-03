@@ -2,10 +2,15 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using UnityEditor.ShaderGraph.Internal;
+using Cinemachine.Utility;
+using DG.Tweening;
 public class BallControl : MonoBehaviour
 {
     [SerializeField, Header("始点")] private Transform _releasePoint;
     [SerializeField, Header("終点")] private Transform _endPos;
+    [SerializeField, Header("EndPosのxy座標それぞれの最小（左上）")] private Transform _xYMin;
+    [SerializeField, Header("EndPosのxy座標それぞれの最大(右下)")] private Transform _xYMax;
     private Vector3 _startPoint;
 
     public bool IsMoveBall { get; private set; } = false;
@@ -23,7 +28,7 @@ public class BallControl : MonoBehaviour
     [SerializeField] private MeshRenderer _pitcherBallMesh;
 
 
-    public float BallPitchProgress {get; private set; }
+    public float BallPitchProgress { get; private set; }
     public int PichTypeCount { get; private set; }
     /// <summary>
     /// 制御点
@@ -34,6 +39,7 @@ public class BallControl : MonoBehaviour
     /// </summary>
     private float _pitchDuration;
 
+    private Vector3[] _gizmosPositions = new Vector3[4];
     public float MoveBallTime { get; private set; }
 
     public PitchSettings PitchBallType { get; private set; }
@@ -59,9 +65,13 @@ public class BallControl : MonoBehaviour
         Fork
     }
 
-    private void Start()
+    private void Awake()
     {
         ServiceLocator.Register(this);
+    }
+
+    private void Start()
+    {
         PichTypeCount = Enum.GetValues(typeof(PitchType)).Length;
         _ballDisplaySize = _ballDisplayTransform.localScale;
         _ballDisplayTransform.localScale = Vector3.zero;
@@ -82,7 +92,7 @@ public class BallControl : MonoBehaviour
     {
         Debug.Log("スタートピッチ");
         ServiceLocator.Get<BallJudge>().IsPitching();
-        
+
         //　ミートゾーンを見えなくする
         _meetRenderer.enabled = false;
         this.transform.position = _releasePoint.position;
@@ -90,9 +100,8 @@ public class BallControl : MonoBehaviour
         //　どの球種を投げるのかをランダムに決定
         int random = UnityEngine.Random.Range(0, PichTypeCount);
         //　_endPosのx,y座標をランダムに決定
-        float x = UnityEngine.Random.Range(-0.4f, 1.0f);
-        float y = UnityEngine.Random.Range(0.8f, 2.2f);
-        _endPos.position = new Vector3(x, y, _endPos.position.z);
+
+        _endPos.position = SetRandomEndPos();
 
         _pitchType = (PitchType)random;
 
@@ -137,6 +146,13 @@ public class BallControl : MonoBehaviour
         _controlPoint1 = Vector3.Lerp(_startPoint, _endPos.position, PitchBallType.PathControlRatio1) + PitchBallType.ControlPoint;
         _controlPoint2 = Vector3.Lerp(_startPoint, _endPos.position, PitchBallType.PathControlRatio2) + PitchBallType.ControlPoint2;
         _pitchDuration = PitchBallType.Time;
+    }
+
+    private Vector3 SetRandomEndPos()
+    {
+        float x = UnityEngine.Random.Range(_xYMin.position.x, _xYMax.position.x);
+        float y = UnityEngine.Random.Range(_xYMin.position.y, _xYMax.position.y);
+        return new Vector3(x, y, _endPos.position.z);
     }
 
     /// <summary>
@@ -192,5 +208,20 @@ public class BallControl : MonoBehaviour
         p += ttt * p3; // t³ * P₃
 
         return p;
+    }
+
+    private void OnDrawGizmos()
+    {
+        // xYMinとxYMaxを対角線とする長方形を描画
+        _gizmosPositions[0].Set(_xYMax.position.x, _xYMax.position.y, _endPos.position.z);
+        _gizmosPositions[1].Set(_xYMax.position.x, _xYMin.position.y, _endPos.position.z);
+        _gizmosPositions[2].Set(_xYMin.position.x, _xYMin.position.y, _endPos.position.z);
+        _gizmosPositions[3].Set(_xYMin.position.x, _xYMax.position.y, _endPos.position.z);
+
+        Gizmos.color = Color.yellow;
+        Gizmos.DrawLine(_gizmosPositions[0], _gizmosPositions[1]);
+        Gizmos.DrawLine(_gizmosPositions[1], _gizmosPositions[2]);
+        Gizmos.DrawLine(_gizmosPositions[2], _gizmosPositions[3]);
+        Gizmos.DrawLine(_gizmosPositions[3], _gizmosPositions[0]);
     }
 }
