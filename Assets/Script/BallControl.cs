@@ -13,11 +13,8 @@ public class BallControl : MonoBehaviour
     [SerializeField, Header("EndPosのxy座標それぞれの最大(右下)")] private Transform _xYMax;
     private Vector3 _startPoint;
 
-    public bool IsMoveBall { get; private set; } = false;
 
     [SerializeField] private MeshRenderer _meetRenderer;
-
-    [SerializeField] private List<PitchSettings> _controlPointsList;
 
     [SerializeField] private PitchType _pitchType;
 
@@ -26,9 +23,9 @@ public class BallControl : MonoBehaviour
 
     [SerializeField] private MeshRenderer _moveBallMesh;
     [SerializeField] private MeshRenderer _pitcherBallMesh;
+    public float debugTime;
 
 
-    public float BallPitchProgress { get; private set; }
     public int PichTypeCount { get; private set; }
     /// <summary>
     /// 制御点
@@ -42,20 +39,8 @@ public class BallControl : MonoBehaviour
     private Vector3[] _gizmosPositions = new Vector3[4];
     public float MoveBallTime { get; private set; }
 
-    public PitchSettings PitchBallType { get; private set; }
-
     public IEnumerator PitchBallMoveCoroutine { get; private set; }
 
-    [Serializable]
-    public class PitchSettings
-    {
-        public string Name;
-        public Vector3 ControlPoint;
-        [SerializeField, Range(0f, 1f)] public float PathControlRatio1;
-        public Vector3 ControlPoint2;
-        [SerializeField, Range(0f, 1f)] public float PathControlRatio2;
-        public float Time;
-    }
     [SerializeField]
     public enum PitchType
     {
@@ -83,12 +68,7 @@ public class BallControl : MonoBehaviour
         StartCoroutine(PitchBallMoveCoroutine);
     }
 
-    public void SetBallState(bool isMove)
-    {
-        IsMoveBall = isMove;
-    }
-
-    public void Pitching()
+    public void Pitching(PitchBallData pitchBall)
     {
         Debug.Log("スタートピッチ");
         ServiceLocator.Get<BallJudge>().IsPitching();
@@ -97,16 +77,12 @@ public class BallControl : MonoBehaviour
         _meetRenderer.enabled = false;
         this.transform.position = _releasePoint.position;
         _startPoint = _releasePoint.position;
-        //　どの球種を投げるのかをランダムに決定
-        int random = UnityEngine.Random.Range(0, PichTypeCount);
-        //　_endPosのx,y座標をランダムに決定
 
+        //　_endPosのx,y座標をランダムに決定
         _endPos.position = SetRandomEndPos();
 
-        _pitchType = (PitchType)random;
-
         // ベジェ曲線の制御点と到達時間を設定
-        SetupControlPoints();
+        SetupControlPoints(pitchBall);
 
         //　実際にボールを動かす
         PitchBallMoveCoroutine = MoveBall();
@@ -116,36 +92,11 @@ public class BallControl : MonoBehaviour
     /// <summary>
     /// 球種によって制御点と到達時間を設定
     /// </summary>
-    private void SetupControlPoints()
+    private void SetupControlPoints(PitchBallData pitchBall)
     {
-        Debug.Log("軌道をセットアップ");
-        switch (_pitchType)
-        {
-            case PitchType.Fastball:
-                Debug.Log("ストレート");
-                PitchBallType = _controlPointsList.Find(x => x.Name == "ストレート");
-                break;
-            case PitchType.Curveball:
-                Debug.Log("カーブ");
-                PitchBallType = _controlPointsList.Find(x => x.Name == "カーブ");
-                break;
-            case PitchType.Slider:
-                Debug.Log("スライダー");
-                PitchBallType = _controlPointsList.Find(x => x.Name == "スライダー");
-                break;
-            case PitchType.Fork:
-                Debug.Log("フォーク");
-                PitchBallType = _controlPointsList.Find(x => x.Name == "フォーク");
-                break;
-            default:
-                //ここにない球種が来た場合はストレートとして扱う
-                PitchBallType = _controlPointsList.Find(x => x.Name == "ストレート");
-                break;
-        }
-
-        _controlPoint1 = Vector3.Lerp(_startPoint, _endPos.position, PitchBallType.PathControlRatio1) + PitchBallType.ControlPoint;
-        _controlPoint2 = Vector3.Lerp(_startPoint, _endPos.position, PitchBallType.PathControlRatio2) + PitchBallType.ControlPoint2;
-        _pitchDuration = PitchBallType.Time;
+        _controlPoint1 = Vector3.Lerp(_startPoint, _endPos.position, pitchBall.PathControlRatio1) + pitchBall.ControlPoint;
+        _controlPoint2 = Vector3.Lerp(_startPoint, _endPos.position, pitchBall.PathControlRatio2) + pitchBall.ControlPoint2;
+        _pitchDuration = pitchBall.Time;
     }
 
     private Vector3 SetRandomEndPos()
@@ -165,11 +116,10 @@ public class BallControl : MonoBehaviour
         _ballDisplayTransform.localScale = _ballDisplaySize;
         MoveBallTime = 0;
 
-        while (MoveBallTime < 1.0f)
+        while (MoveBallTime < 1)
         {
             MoveBallTime += Time.deltaTime / _pitchDuration;
-            BallPitchProgress = MoveBallTime;
-            this.transform.position = BezierPoint(_startPoint, _controlPoint1, _controlPoint2, _endPos.position, MoveBallTime);
+            this.transform.position = BezierPoint(MoveBallTime);
 
             yield return null; // 次のフレームまで待機
         }
@@ -194,7 +144,7 @@ public class BallControl : MonoBehaviour
     /// <summary>
     /// ベジェ曲線の具体的な計算(B(t) = (1-t)³P₀ + 3(1-t)²tP₁ + 3(1-t)t²P₂ + t³P₃)
     /// </summary>
-    private Vector3 BezierPoint(Vector3 p0, Vector3 p1, Vector3 p2, Vector3 p3, float t)
+    public Vector3 BezierPoint(float t)
     {
         float u = 1 - t;
         float tt = t * t;
@@ -202,10 +152,10 @@ public class BallControl : MonoBehaviour
         float uuu = uu * u;
         float ttt = tt * t;
 
-        Vector3 p = uuu * p0; // (1-t)³ * P₀
-        p += 3 * uu * t * p1; // 3(1-t)² * t * P₁
-        p += 3 * u * tt * p2; // 3(1-t) * t² * P₂
-        p += ttt * p3; // t³ * P₃
+        Vector3 p = uuu * _startPoint; // (1-t)³ * P₀
+        p += 3 * uu * t * _controlPoint1; // 3(1-t)² * t * P₁
+        p += 3 * u * tt * _controlPoint2; // 3(1-t) * t² * P₂
+        p += ttt * _endPos.position; // t³ * P₃
 
         return p;
     }
@@ -223,5 +173,7 @@ public class BallControl : MonoBehaviour
         Gizmos.DrawLine(_gizmosPositions[1], _gizmosPositions[2]);
         Gizmos.DrawLine(_gizmosPositions[2], _gizmosPositions[3]);
         Gizmos.DrawLine(_gizmosPositions[3], _gizmosPositions[0]);
+
+        Gizmos.DrawSphere(BezierPoint(debugTime), 1);
     }
 }
