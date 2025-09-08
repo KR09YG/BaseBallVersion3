@@ -3,20 +3,32 @@ using System.Collections;
 using System.Collections.Generic;
 using DG.Tweening;
 using UnityEngine.Playables;
-using UnityEngine.Rendering;
+using Cysharp.Threading.Tasks;
 
 public class BattingBallMove : MonoBehaviour
 {
     [SerializeField] private Transform _ballTransform;
-    [SerializeField] private IsHomeRun _isHomeRun;
     [SerializeField] private PlayableDirector _homerunMovie;
+    [SerializeField] private BallControl _ballControl;
     [SerializeField] private PlayableDirector _hitMovie;
+    [SerializeField] private GameStateManager _gameStateManager;
     [Header("移動間隔（何秒ごとに次のポイントに進むのか）"), SerializeField]
     private float _moveInterval = 0.1f; // ボールの移動間隔
+    [SerializeField] private HomeRunChecker _isHomeRun;
 
-    private void Start()
+    private void Awake()
     {
         ServiceLocator.Register(this);
+    }
+
+    
+
+    public async UniTaskVoid BattingBallMoved()
+    {
+        _gameStateManager.SetState(GameState.Fielding);
+
+        int index = 0;
+        
     }
 
     /// <summary>
@@ -24,7 +36,8 @@ public class BattingBallMove : MonoBehaviour
     /// </summary>
     public IEnumerator BattingMove(List<Vector3> trajectryData, Vector3 landingPos, bool isRePlay)
     {       
-        ServiceLocator.Get<BallControl>().SetBallState(true);
+        _gameStateManager.SetState(GameState.Fielding);
+
         int index = 0;
         bool isHomerun = _isHomeRun.HomeRunCheck(landingPos);
         if (isHomerun && !isRePlay)
@@ -60,12 +73,17 @@ public class BattingBallMove : MonoBehaviour
                 Debug.Log("リプレイを終了します。イベントを発火します。");
                 ServiceLocator.Get<RePlayManager>().RePlayFin?.Invoke();
                 ServiceLocator.Get<BattingInputManager>()._endReplay?.Invoke();
+                _gameStateManager.SetState(GameState.Batting);
                 break;
             }
 
             index++;
         }
-        ServiceLocator.Get<BallControl>().SetBallState(false);
+
+        _gameStateManager.SetState(GameState.Batting);
+
+        if (!isHomerun)
+            ServiceLocator.Get<BattingInputManager>().ResetData();
     }
 
     public void StopMovie()
