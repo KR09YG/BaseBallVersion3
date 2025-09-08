@@ -6,7 +6,11 @@ public class LogoSelector : MonoBehaviour
     [SerializeField] private Image _logoImage;
     [SerializeField] private Sprite[] _teamSprites;
     [SerializeField] private Animator _attentionTextAnim;
+    [SerializeField] private SceneChanger _changer;
+    [SerializeField] private DirectionManager _directionManager;
     private Sprite _selectedSprite = null;
+    private Sprite _opponentSprite = null;
+    private int _selectedIndex;
 
     public void SetLogo(int id)
     {
@@ -17,6 +21,7 @@ public class LogoSelector : MonoBehaviour
         }
 
         _selectedSprite = _teamSprites[id];
+        _selectedIndex = id;
         ChangedSelectedLogoVisual();
     }
 
@@ -39,6 +44,19 @@ public class LogoSelector : MonoBehaviour
             return;
         }
 
-        Debug.Log("チームロゴ設定完了　ゲームを開始します");
+        RandomSelectedOpponentLogo();
+        SingletonDataManager.Instance.SetSelectedLogoIndex(_selectedSprite,_opponentSprite);
+        _directionManager.StartGameDirection();
+    }
+
+    public void RandomSelectedOpponentLogo()
+    {
+        int index = Random.Range(0, _teamSprites.Length);
+        while (_selectedIndex == index)
+        {
+            index = Random.Range(0,_teamSprites.Length);
+        }
+        
+        _opponentSprite = _teamSprites[index];
     }
 }
