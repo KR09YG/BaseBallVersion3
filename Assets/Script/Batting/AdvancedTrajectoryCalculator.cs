@@ -9,6 +9,7 @@ public class AdvancedTrajectoryCalculator : MonoBehaviour
     [SerializeField] private FoulChecker _foulChecker;
     [SerializeField] private HomeRunChecker _homeRunChecker;
     [SerializeField] private BaseManager _baseManager;
+    [SerializeField] private InitialSpeedData _batttingResultData;
 
     // 弾道を保存するリスト
     private List<Vector3> _trajectoryPoints = new List<Vector3>();
@@ -21,17 +22,16 @@ public class AdvancedTrajectoryCalculator : MonoBehaviour
     [Header("弾道計算の計算時間"), SerializeField] private float _calculationTime;
     [Header("地面の高さ"), SerializeField] private float _groundHeight;
 
-    [SerializeField] private GameObject _g;
-    [SerializeField] private Transform t;
-
     /// <summary>
     /// 弾道計算
     /// </summary>
     /// <param name="landingpoint">着地した座標</param>
     /// <param name="flightTime"> 滞空時間</param>
     /// <returns>弾道の座標リスト</returns>
-    public List<Vector3> TrajectoryCalculate(BattingResultData resultData, BattingInputData inputData, out Vector3 landingpoint, out float flightTime)
+    public TrajectoryData TrajectoryCalculate(InitialSpeedData resultData, BattingInputData inputData, out Vector3 landingpoint, out float flightTime)
     {
+        TrajectoryData trajectoryData = new TrajectoryData();
+        trajectoryData.hitType = TrajectoryData.HitType.LineDrive;
         _trajectoryPoints.Clear();
 
         Vector3 startPos = inputData.BallPosition;
@@ -47,14 +47,14 @@ public class AdvancedTrajectoryCalculator : MonoBehaviour
         {
             t += _calculationInterval;
 
-            //x座標の計算(x(t) = x₀ + v₀ₓ × t)
-            _x = startPos.x + _velocity.x * (t - groundTime);
-            //y座標の計算(y(t) = y₀ + v₀ᵧ × t - 1/2gt²)
-            _y = startPos.y + _velocity.y * (t - groundTime) - 0.5f * _physicsData.Gravity * (t - groundTime) * (t - groundTime);
-            //z座標の計算(z(t) = z₀ + v₀𝓏 × t)
-            _z = startPos.z + _velocity.z * (t - groundTime);
+            float timeFromLastBounce = t - groundTime;
 
-            _tempPosition.x = _x; _tempPosition.y = _y; _tempPosition.z = _z;
+            //x座標の計算(x(t) = x₀ + v₀ₓ × t)
+            _tempPosition.x = startPos.x + _velocity.x * timeFromLastBounce;
+            //y座標の計算(y(t) = y₀ + v₀ᵧ × t - 1/2gt²)
+            _tempPosition.y = startPos.y + _velocity.y * timeFromLastBounce - 0.5f * _physicsData.Gravity * timeFromLastBounce * timeFromLastBounce;
+            //z座標の計算(z(t) = z₀ + v₀𝓏 × t)
+            _tempPosition.z = startPos.z + _velocity.z * timeFromLastBounce;
 
             if (_y < 0)
             {
@@ -73,8 +73,8 @@ public class AdvancedTrajectoryCalculator : MonoBehaviour
                 {
                     flightTime = t; // 滞空時間を出力パラメータに設定
                     landingpoint = _tempPosition;
+                    trajectoryData.LandingPosition = landingpoint;
                     isFirstGround = false;
-                    Instantiate(_g, landingpoint, Quaternion.identity);
 
                     // ファールかフェアかを判定
                     if (_foulChecker.IsFoul(landingpoint))
@@ -100,7 +100,9 @@ public class AdvancedTrajectoryCalculator : MonoBehaviour
             _trajectoryPoints.Add(_tempPosition);
         }
 
-        return _trajectoryPoints;
+        trajectoryData.TrajectoryPoints = _trajectoryPoints;
+
+        return trajectoryData;
     }
 
     private void BounceWall()
@@ -113,12 +115,11 @@ public class AdvancedTrajectoryCalculator : MonoBehaviour
             Debug.Log("ネットに衝突");
             Collider hitCollider = _colliders[0];
             Vector3 closestPoint = hitCollider.ClosestPoint(_tempPosition);
+            Vector3 inDirection = new Vector3(_velocity.x, 0, _velocity.z);
             Vector3 normal = (_tempPosition - closestPoint).normalized;
-            Vector3 horizontalVelocity = new Vector3(_velocity.x, 0, _velocity.z);
-            Vector3 reflection = Vector3.Reflect(horizontalVelocity, normal);
-            Debug.Log(reflection);
-            _velocity.x *= reflection.x * _physicsData.WallReboundCoefficient;
-            _velocity.z *= reflection.z * _physicsData.WallReboundCoefficient;
+            Vector3 reflection = Vector3.Reflect(inDirection, normal);
+            _velocity.x = reflection.x * _physicsData.WallReboundCoefficient;
+            _velocity.z = reflection.z * _physicsData.WallReboundCoefficient;
         }
     }
 
