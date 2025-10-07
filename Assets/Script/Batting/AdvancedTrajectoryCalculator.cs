@@ -14,7 +14,7 @@ public class AdvancedTrajectoryCalculator : MonoBehaviour
     // 弾道を保存するリスト
     private List<Vector3> _trajectoryPoints = new List<Vector3>();
     private Vector3 _tempPosition = Vector3.zero;
-    private float _x, _y, _z; // 一時的な座標変数
+    private float _y;
     private Vector3 _velocity;
     private Collider[] _colliders;
 
@@ -56,7 +56,7 @@ public class AdvancedTrajectoryCalculator : MonoBehaviour
             //z座標の計算(z(t) = z₀ + v₀𝓏 × t)
             _tempPosition.z = startPos.z + _velocity.z * timeFromLastBounce;
 
-            if (_y < 0)
+            if (_tempPosition.y < 0)
             {
                 startPos = _tempPosition;
                 startPos.y = _groundHeight;
