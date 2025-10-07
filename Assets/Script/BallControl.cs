@@ -1,10 +1,6 @@
 ﻿using UnityEngine;
 using System;
 using System.Collections;
-using System.Collections.Generic;
-using UnityEditor.ShaderGraph.Internal;
-using Cinemachine.Utility;
-using DG.Tweening;
 public class BallControl : MonoBehaviour
 {
     [SerializeField, Header("始点")] private Transform _releasePoint;
@@ -13,18 +9,15 @@ public class BallControl : MonoBehaviour
     [SerializeField, Header("EndPosのxy座標それぞれの最大(右下)")] private Transform _xYMax;
     private Vector3 _startPoint;
 
-
     [SerializeField] private MeshRenderer _meetRenderer;
 
     [SerializeField] private PitchType _pitchType;
-
-    [SerializeField] private Transform _ballDisplayTransform;
-    Vector3 _ballDisplaySize;
 
     [SerializeField] private MeshRenderer _moveBallMesh;
     [SerializeField] private MeshRenderer _pitcherBallMesh;
     public float debugTime;
 
+    [SerializeField] private float _slowTime;
 
     public int PichTypeCount { get; private set; }
     /// <summary>
@@ -58,8 +51,6 @@ public class BallControl : MonoBehaviour
     private void Start()
     {
         PichTypeCount = Enum.GetValues(typeof(PitchType)).Length;
-        _ballDisplaySize = _ballDisplayTransform.localScale;
-        _ballDisplayTransform.localScale = Vector3.zero;
     }
 
     public void RePlayPitching()
@@ -113,7 +104,6 @@ public class BallControl : MonoBehaviour
     {
         _pitcherBallMesh.enabled = false;
         _moveBallMesh.enabled = true;
-        _ballDisplayTransform.localScale = _ballDisplaySize;
         MoveBallTime = 0;
 
         while (MoveBallTime < 1)
@@ -124,20 +114,13 @@ public class BallControl : MonoBehaviour
             yield return null; // 次のフレームまで待機
         }
 
-        ServiceLocator.Get<BallJudge>().IsPitching();
-        ServiceLocator.Get<BallJudge>().StrikeJudge();
-
-        _moveBallMesh.enabled = false;
-        _pitcherBallMesh.enabled = true;
-        _ballDisplayTransform.localScale = Vector3.zero;
-        _startPoint = Vector3.zero;
-        _meetRenderer.enabled = true;
+        OnEndPitch?.Invoke();   
     }
 
     public void StopBall()
     {
         _meetRenderer.enabled = true;
-        _ballDisplayTransform.localScale = Vector3.zero;
+        _meetRenderer.enabled = true;
         StopAllCoroutines();
     }
 
@@ -158,22 +141,5 @@ public class BallControl : MonoBehaviour
         p += ttt * _endPos.position; // t³ * P₃
 
         return p;
-    }
-
-    private void OnDrawGizmos()
-    {
-        // xYMinとxYMaxを対角線とする長方形を描画
-        _gizmosPositions[0].Set(_xYMax.position.x, _xYMax.position.y, _endPos.position.z);
-        _gizmosPositions[1].Set(_xYMax.position.x, _xYMin.position.y, _endPos.position.z);
-        _gizmosPositions[2].Set(_xYMin.position.x, _xYMin.position.y, _endPos.position.z);
-        _gizmosPositions[3].Set(_xYMin.position.x, _xYMax.position.y, _endPos.position.z);
-
-        Gizmos.color = Color.yellow;
-        Gizmos.DrawLine(_gizmosPositions[0], _gizmosPositions[1]);
-        Gizmos.DrawLine(_gizmosPositions[1], _gizmosPositions[2]);
-        Gizmos.DrawLine(_gizmosPositions[2], _gizmosPositions[3]);
-        Gizmos.DrawLine(_gizmosPositions[3], _gizmosPositions[0]);
-
-        Gizmos.DrawSphere(BezierPoint(debugTime), 1);
     }
 }
