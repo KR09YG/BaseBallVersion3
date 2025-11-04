@@ -121,7 +121,5 @@ public class AdvancedTrajectoryCalculator : MonoBehaviour
             _velocity.x = reflection.x * _physicsData.WallReboundCoefficient;
             _velocity.z = reflection.z * _physicsData.WallReboundCoefficient;
         }
-    }
-
-    
+    }    
 }

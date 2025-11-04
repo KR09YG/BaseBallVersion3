@@ -5,6 +5,8 @@ public class RunnerCalculation : MonoBehaviour
 {
     [SerializeField] private Transform _runnerTransform;
     private WaitForEndOfFrame _waitForEndOfFrame = new WaitForEndOfFrame();
+
+
     /// <summary>
     /// ƒ‰ƒ“ƒi[‚Ì‘–—ÛŒvZ
     /// </summary>

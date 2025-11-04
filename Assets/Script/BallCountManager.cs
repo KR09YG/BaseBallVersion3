@@ -13,14 +13,8 @@ public class BallCountManager : MonoBehaviour
     public Action OutEvent;
     public Action FoulEvent;
 
-    private void Awake()
-    {
-        ServiceLocator.Register(this);
-    }
-
     private void Start()
     {
-        _ballCountDisplay = ServiceLocator.Get<BallCountDisplay>();
         StrikeEvent += StrikeCalled;
         OutEvent += OutCalled;
         BallEvent += BallCalled;

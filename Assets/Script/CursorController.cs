@@ -11,19 +11,13 @@ public class CursorController : MonoBehaviour
     public bool IsCursorInZone { get; private set; }
     private GameStateManager _gameStateManager;
 
-    private void Awake()
-    {
-        ServiceLocator.Register(this);
-    }
-
     private void Start()
     {
-        _gameStateManager = ServiceLocator.Get<GameStateManager>();
         Cursor.visible = _isCursor;
     }
     private void Update()
     {
-        if (_gameStateManager && _gameStateManager.GetCurrentState() != GameStateManager.GameState.Batting)
+        if (_gameStateManager && _gameStateManager.CurrentState != GameState.Batting)
         {
             IsCursorInZone = false;
             return;

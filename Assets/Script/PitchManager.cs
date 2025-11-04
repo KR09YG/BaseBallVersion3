@@ -4,17 +4,19 @@ public class PitchManager : MonoBehaviour
 {
     [SerializeField] Animator _anim;
     Vector3 _pitchPos;
-
+    private PitchBallData _pitchBall;
+    [SerializeField] private PitcherAI _pitcherAI;
+    public event System.Action OnRelease;
 
     private void Start()
     {
-        ServiceLocator.Register(this);
         _pitchPos = this.transform.position;
     }
-    public void StartPitch()
+    public void StartPitch(PitchBallData pitchBall)
     {
         Debug.Log("アニメーションスタート");        
         _anim.SetTrigger("isPitch");
+        _pitchBall = pitchBall;
     }
 
     public void RePlayPitch(string animName)
@@ -27,23 +29,21 @@ public class PitchManager : MonoBehaviour
     public void RePlayRelease()
     {
         Debug.Log("リプレイリリース");
-        ServiceLocator.Get<RePlayManager>().RePlayRelease();
     }
 
 
     public void Release()
     {
         Debug.Log("release");
-        ServiceLocator.Get<BallControl>().enabled = true;
-        ServiceLocator.Get<BallControl>().Pitching();
+        OnRelease?.Invoke();
     }
 
     private void Update()
     {
         if (Input.GetKeyDown(KeyCode.S))
         {
-            StartPitch();
             this.transform.position = _pitchPos;
+            _pitcherAI.PitchStart().Forget();
         }
     }
 }

@@ -29,6 +29,7 @@ public class BattingTimingCalculator : MonoBehaviour
     {
         // 100%Ç…çáÇÌÇπÇÈÇΩÇﬂballProgressÇ100î{Ç∑ÇÈ
         float difference = Mathf.Abs(ballProgress * PERCENTAGE_MULTIPLIER - _battingData.TimingReferenceValue);
+        Debug.Log($"åÎç∑{difference}");
 
         if (difference <= _battingData.PerfectTimingRange)
         {

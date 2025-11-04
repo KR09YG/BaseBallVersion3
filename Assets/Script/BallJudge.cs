@@ -8,12 +8,6 @@ public class BallJudge : MonoBehaviour
     private bool _isPitching;
     private Collider[] _colliders;
 
-
-    private void Start()
-    {
-        ServiceLocator.Register(this);
-    }
-
     private void OnTriggerEnter(Collider other)
     {
         if (other.gameObject == _ball)
@@ -39,7 +33,7 @@ public class BallJudge : MonoBehaviour
     /// </summary>
     public void Hit()
     {
-        ServiceLocator.Get<BallCountManager>().ResetCounts();
+
     }
 
     /// <summary>
@@ -47,7 +41,7 @@ public class BallJudge : MonoBehaviour
     /// </summary>
     public void FoulBall()
     {
-        ServiceLocator.Get<BallCountManager>().FoulEvent?.Invoke();
+
     }
 
     /// <summary>
@@ -67,12 +61,11 @@ public class BallJudge : MonoBehaviour
     {
         if (IsStrike)
         {
-            ServiceLocator.Get<BallCountManager>().StrikeEvent?.Invoke();
             IsStrike = false;
         }
         else
         {
-            ServiceLocator.Get<BallCountManager>().BallEvent?.Invoke();
+
         }
     }
 }

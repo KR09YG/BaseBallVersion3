@@ -7,17 +7,7 @@ public class BallCountDisplay : MonoBehaviour
     [SerializeField, Header("ストライクカウントのイメージ")] Image[] _strikeImages;
     [SerializeField, Header("ボールカウントのイメージ")] Image[] _ballImages;
     [SerializeField, Header("アウトカウントのイメージ")] Image[] _outImages;
-
-    private void Awake()
-    {
-        ServiceLocator.Register(this);
-    }
-
-    private void Start()
-    {
-        _ballCountManager = ServiceLocator.Get<BallCountManager>();
-    }
-
+    
     public void BallCountDisplayUpdate()
     {
         for (int i = 0; i < _strikeImages.Length; i++)

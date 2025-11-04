@@ -24,15 +24,10 @@ public class BattingInitialSpeedCalculator : MonoBehaviour
         public float ContactRangeMultiplier;
     }
 
-    private void Awake()
-    {
-        ServiceLocator.Register(this);
-    }
-
     /// <summary>
     /// BattingInputDataからBattingResultDataを計算
     /// </summary>
-    public BattingResultData InitialSpeedCalculate(BattingInputData inputData)
+    public InitialSpeedData InitialSpeedCalculate(BattingInputData inputData)
     {
         if (_showCalculationLogs)
         {
@@ -41,7 +36,7 @@ public class BattingInitialSpeedCalculator : MonoBehaviour
             Debug.Log($"精度タイプ: {inputData.Accuracy}, 距離={inputData.DistanceFromCore:F3}");
         }
 
-        var resultData = new BattingResultData();
+        var resultData = new InitialSpeedData();
         var typeSettings = GetBatterTypeSettings(inputData.BatterType);
 
         //パワーの計算
@@ -73,7 +68,7 @@ public class BattingInitialSpeedCalculator : MonoBehaviour
         return Mathf.Max(power, 0f); // パワーは0以上に制限
     }
 
-    private HitType DetermineHittingType(BattingResultData resultData)
+    private HitType DetermineHittingType(InitialSpeedData resultData)
     {
         if ( resultData.LaunchAngle < _battingData.GroundBallAngle)
         {

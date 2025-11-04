@@ -6,6 +6,8 @@ using UnityEngine;
 public class BattingInputManager : MonoBehaviour
 {
     [SerializeField] BattingInitialSpeedCalculator.BatterTypeSettings _currentBatterType;
+    [SerializeField] GameStateManager _gameStateManager;
+    [SerializeField] RePlayManager _rePlayManager;
     [SerializeField] BallControl _ballControl;
     [SerializeField] BattingTimingCalculator _timingCalculator;
     [SerializeField] BattingInitialSpeedCalculator _initialSpeedCalculator;
@@ -13,14 +15,17 @@ public class BattingInputManager : MonoBehaviour
     [SerializeField] AdvancedTrajectoryCalculator _trajectoryCalculator;
     [SerializeField] HomeRunChecker _homerunChecker;
     [SerializeField] BallJudge _ballJudge;
+    [SerializeField] BatterAnimationEvents _batterAnimEvent;
 
     [SerializeField, Header("アニメーションがボールが当たるタイミングまでかかる時間")] float _swingAnimTime;
 
+    private List<IBattingCallObserver> _observers = new List<IBattingCallObserver>();
+
     public IEnumerator BallMoveCoroutine { get; private set; }
 
-    public List<Vector3> _trajectoryPoints { get; private set; } = new List<Vector3>();
+    private Vector3 a;
 
-    Vector3 _landingPoint;
+    private Vector3 _landingPoint;
 
     public bool CanStartInput { get; private set; } = true;
 
@@ -35,19 +40,13 @@ public class BattingInputManager : MonoBehaviour
     public bool TimingAccuracy;
     public bool AccuracyEvaluation;
 
-
-    private void Awake()
-    {
-        ServiceLocator.Register(this);
-    }
-
     private void Start()
     {
         _startReplay += () =>
         {
             _ballControl.StopBall();
-            BallMoveCoroutine = ServiceLocator.Get<BattingBallMove>().BattingMove(_trajectoryPoints, _landingPoint, true);
             CanStartInput = false;
+            
             StartCoroutine(BallMoveCoroutine);
         };
         _endReplay += () =>
@@ -58,17 +57,22 @@ public class BattingInputManager : MonoBehaviour
         };
     }
 
+    public void RegisterObserver(IBattingCallObserver observer)
+    {
+        if (!_observers.Contains(observer))
+        {
+            _observers.Add(observer);
+        }
+    }
+
+
     public void StartInput()
     {
+        foreach (var observer in _observers)
+        {
+            observer.BattingCall();
+        }
         _resultDataManager.InputData = InputData();
-
-        // デバッグの表示
-        if (InputTime) Debug.Log(_resultDataManager.InputData.InputTime);
-        if (BallPosition) Debug.Log(_resultDataManager.InputData.BallPosition);
-        if (BallCorePosition) Debug.Log(_resultDataManager.InputData.AtCorePosition);
-        if (DistanceFromCore) Debug.Log(_resultDataManager.InputData.DistanceFromCore);
-        if (TimingAccuracy) Debug.Log(_resultDataManager.InputData.TimingAccuracy);
-        if (AccuracyEvaluation) Debug.Log(_resultDataManager.InputData.Accuracy);
 
         // Input時のデータをもとに初速を計算
         _resultDataManager.ResultData = _initialSpeedCalculator.InitialSpeedCalculate(_resultDataManager.InputData);
@@ -76,11 +80,12 @@ public class BattingInputManager : MonoBehaviour
         if (_resultDataManager.InputData.Accuracy != AccuracyType.Miss) // ボールがバットに当たった場合
         {
             // 投球の処理を停止
-            _ballControl.StopBall();
+            //_ballControl.StopBall();
 
             // 弾道の計算
-            _trajectoryPoints = _trajectoryCalculator.TrajectoryCalculate(
+            _resultDataManager.TrajectoryData = _trajectoryCalculator.TrajectoryCalculate(
                 _resultDataManager.ResultData, _resultDataManager.InputData, out Vector3 landingPoint, out float flightTime);
+            _landingPoint = landingPoint;
 
             if (_homerunChecker.HomeRunCheck(landingPoint)) _resultDataManager.ResultData.HittingType = HitType.HomeRun;
 
@@ -90,19 +95,11 @@ public class BattingInputManager : MonoBehaviour
             // 打球の種類に応じた処理
             if (_resultDataManager.ResultData.HittingType == HitType.FoulBall) _ballJudge.FoulBall();
             else _ballJudge.Hit();
-
-            // 弾道計算の結果をもとに実際にボールを動かす
-            //BallMoveCoroutine = ServiceLocator.Get<BattingBallMove>().BattingMove(_trajectoryPoints, landingPoint, false);
-            //_landingPoint = landingPoint;
-            //StartCoroutine(BallMoveCoroutine);
-
-            // ランナーの計算を開始
-            //StartCoroutine(ServiceLocator.Get<RunnerCalculation>().RunningCalculate(
-            //    6f, 0f, ServiceLocator.Get<BaseManager>().HomeBase, ServiceLocator.Get<BaseManager>().FirstBase));
         }
         else　 // ボールがバットに当たらなかった場合
         {
-            ServiceLocator.Get<BallJudge>().SwingStrike();
+            _resultDataManager.TrajectoryData = new TrajectoryData();
+            _resultDataManager.TrajectoryData.hitType = TrajectoryData.HitType.Miss;
         }
     }
 
@@ -112,21 +109,27 @@ public class BattingInputManager : MonoBehaviour
     public void ResetData()
     {
         _resultDataManager.InputData = null;
-        _trajectoryPoints.Clear();
+        _resultDataManager.TrajectoryData.TrajectoryPoints.Clear();
         _landingPoint = Vector3.zero;
         _resultDataManager.ResultData = null;
     }
 
     private void Update()
     {
-        if (Input.GetKeyDown(KeyCode.Space))
+        if (Input.GetMouseButtonDown(0))
         {
-            if (BallMoveCoroutine != null)
-            {
-                StopCoroutine(BallMoveCoroutine);
-            }
+            //StartInput();
+            _rePlayManager.ClickTimeSet(_ballControl.MoveBallTime);
+            //StartCoroutine(_batterAnimEvent.PositionReset());
+        }
+
+        if (Input.GetMouseButtonDown(1))
+        {
+            _gameStateManager.SetState(GameState.Batting);
         }
     }
+
+
 
     /// <summary>
     /// BattingInputDataをインプットする
@@ -143,7 +146,7 @@ public class BattingInputManager : MonoBehaviour
 
         // スイングしたアニメーションでボールが当たるタイミングまで進めたボールの座標で計算する
         inputData.BallPosition = _ballControl.BezierPoint(_ballControl.MoveBallTime + _swingAnimTime);
-        inputData.AtCorePosition = ServiceLocator.Get<CursorController>().CursorPosition.position;
+        a = inputData.BallPosition;
         inputData.DistanceFromCore = Vector3.Distance(inputData.BallPosition, inputData.AtCorePosition);
 
         // 精度計算
@@ -160,5 +163,7 @@ public class BattingInputManager : MonoBehaviour
     {
         if (_resultDataManager.ResultData != null)
             Gizmos.DrawLine(Vector3.zero, _resultDataManager.ResultData.ActualDirection);
+
+        Gizmos.DrawSphere(a, 0.1f);
     }
 }

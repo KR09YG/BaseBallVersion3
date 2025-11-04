@@ -27,12 +27,10 @@ public class RePlayManager : MonoBehaviour
 
     private void Start()
     {
-        ServiceLocator.Register(this);
         RePlayFin.AddListener(() =>
         {
             Time.timeScale = 1f;
             ResetPriority(_ballLookCamera);
-            ServiceLocator.Get<BallControl>().SetBallState(false);
         });
     }
 
@@ -44,16 +42,13 @@ public class RePlayManager : MonoBehaviour
     public void RePlayRelease()
     {
         Debug.Log("Release");
-        ServiceLocator.Get<BallControl>().RePlayPitching();
         StartCoroutine(SwingStart());
     }
 
     IEnumerator SwingStart()
     {
         yield return new WaitForSeconds(_clickTiming);
-        ServiceLocator.Get<BattingBallMove>().StopMovie();
         SetPriority(_batterCamera);
-        ServiceLocator.Get<BatterAnimationControl>().StartAnim("HomerunReplay");
     }
 
     public void SetPriority(CinemachineVirtualCamera camera)
@@ -68,8 +63,6 @@ public class RePlayManager : MonoBehaviour
 
     public void RePlayHomerunBall()
     {
-        StartCoroutine(ServiceLocator.Get<BatterAnimationControl>().PositionReset());
-        ServiceLocator.Get<BatterAnimationControl>().AimIKReCall();
-        ServiceLocator.Get<BattingInputManager>()._startReplay?.Invoke();
+
     }
 }

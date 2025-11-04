@@ -7,6 +7,7 @@ public class BallControl : MonoBehaviour
     [SerializeField, Header("終点")] private Transform _endPos;
     [SerializeField, Header("EndPosのxy座標それぞれの最小（左上）")] private Transform _xYMin;
     [SerializeField, Header("EndPosのxy座標それぞれの最大(右下)")] private Transform _xYMax;
+    public event System.Action OnEndPitch;
     private Vector3 _startPoint;
 
     [SerializeField] private MeshRenderer _meetRenderer;
@@ -43,13 +44,17 @@ public class BallControl : MonoBehaviour
         Fork
     }
 
-    private void Awake()
-    {
-        ServiceLocator.Register(this);
-    }
-
     private void Start()
     {
+        OnEndPitch += () =>
+        {
+            _moveBallMesh.enabled = false;
+            _pitcherBallMesh.enabled = true;
+            _startPoint = Vector3.zero;
+            _meetRenderer.enabled = true;
+            //_batterAnimationControl.ChangeState(PlayerState.Idle);
+        };
+
         PichTypeCount = Enum.GetValues(typeof(PitchType)).Length;
     }
 
@@ -62,7 +67,6 @@ public class BallControl : MonoBehaviour
     public void Pitching(PitchBallData pitchBall)
     {
         Debug.Log("スタートピッチ");
-        ServiceLocator.Get<BallJudge>().IsPitching();
 
         //　ミートゾーンを見えなくする
         _meetRenderer.enabled = false;
@@ -141,5 +145,22 @@ public class BallControl : MonoBehaviour
         p += ttt * _endPos.position; // t³ * P₃
 
         return p;
+    }
+
+    private void OnDrawGizmos()
+    {
+        // xYMinとxYMaxを対角線とする長方形を描画
+        _gizmosPositions[0].Set(_xYMax.position.x, _xYMax.position.y, _endPos.position.z);
+        _gizmosPositions[1].Set(_xYMax.position.x, _xYMin.position.y, _endPos.position.z);
+        _gizmosPositions[2].Set(_xYMin.position.x, _xYMin.position.y, _endPos.position.z);
+        _gizmosPositions[3].Set(_xYMin.position.x, _xYMax.position.y, _endPos.position.z);
+
+        Gizmos.color = Color.yellow;
+        Gizmos.DrawLine(_gizmosPositions[0], _gizmosPositions[1]);
+        Gizmos.DrawLine(_gizmosPositions[1], _gizmosPositions[2]);
+        Gizmos.DrawLine(_gizmosPositions[2], _gizmosPositions[3]);
+        Gizmos.DrawLine(_gizmosPositions[3], _gizmosPositions[0]);
+
+        Gizmos.DrawSphere(BezierPoint(debugTime), 1);
     }
 }

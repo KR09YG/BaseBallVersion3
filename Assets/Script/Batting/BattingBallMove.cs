@@ -16,12 +16,6 @@ public class BattingBallMove : MonoBehaviour
     private float _moveInterval = 0.1f; // ボールの移動間隔
     [SerializeField] private HomeRunChecker _isHomeRun;
 
-    private void Awake()
-    {
-        ServiceLocator.Register(this);
-    }
-
-    
 
     public async UniTaskVoid BattingBallMoved()
     {
@@ -48,11 +42,6 @@ public class BattingBallMove : MonoBehaviour
         {
             _hitMovie.Play();
         }
-        else if (isRePlay && isHomerun)
-        {
-            ServiceLocator.Get<RePlayManager>().ResetPriority(ServiceLocator.Get<RePlayManager>().BatterCamera);
-            ServiceLocator.Get<RePlayManager>().SetPriority(ServiceLocator.Get<RePlayManager>().BallLookCamera);
-        }
 
             Debug.Log(isHomerun ? "ホームラン！" : "ホームランではない");
         while (index < trajectryData.Count)
@@ -71,8 +60,6 @@ public class BattingBallMove : MonoBehaviour
             if (trajectryData[index] == landingPos && isRePlay)
             {
                 Debug.Log("リプレイを終了します。イベントを発火します。");
-                ServiceLocator.Get<RePlayManager>().RePlayFin?.Invoke();
-                ServiceLocator.Get<BattingInputManager>()._endReplay?.Invoke();
                 _gameStateManager.SetState(GameState.Batting);
                 break;
             }
@@ -80,10 +67,7 @@ public class BattingBallMove : MonoBehaviour
             index++;
         }
 
-        _gameStateManager.SetState(GameState.Batting);
-
-        if (!isHomerun)
-            ServiceLocator.Get<BattingInputManager>().ResetData();
+        _gameStateManager.SetState(GameState.Batting);        
     }
 
     public void StopMovie()
