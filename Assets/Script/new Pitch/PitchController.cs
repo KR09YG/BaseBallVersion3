@@ -1,6 +1,7 @@
 ﻿using UnityEngine;
-using System.Collections;
 using System.Collections.Generic;
+using Cysharp.Threading.Tasks;
+using System.Threading;
 
 public class PitchController : MonoBehaviour
 {
@@ -21,29 +22,33 @@ public class PitchController : MonoBehaviour
     [SerializeField] private bool _showTrajectory = true;
     [SerializeField] private LineRenderer _trajectoryLine;
     [SerializeField] private bool _enableDebugLogs = false;
-    [SerializeField] private TrajectoryDebugger _trajectoryDebugger;
+
+    [Header("イベント")]
+    [SerializeField] private PitchBallReleaseEvent _ballReleaseEvent;
 
     private Ball _ball;
     private List<Vector3> _currentTrajectory;
     private bool _isPitching = false;
+    private CancellationTokenSource _cancellationTokenSource;
 
     private void Start()
     {
+        _cancellationTokenSource = new CancellationTokenSource();
+
         CreateBall();
 
-        // LineRendererの表示設定
         if (_trajectoryLine != null)
         {
             _trajectoryLine.enabled = _showTrajectory;
         }
 
-        // TrajectoryDebuggerがなければ自動追加
-        if (_trajectoryDebugger == null)
-        {
-            _trajectoryDebugger = gameObject.AddComponent<TrajectoryDebugger>();
-        }
-
         ValidateSetup();
+    }
+
+    private void OnDestroy()
+    {
+        _cancellationTokenSource?.Cancel();
+        _cancellationTokenSource?.Dispose();
     }
 
     private void Update()
@@ -52,6 +57,11 @@ public class PitchController : MonoBehaviour
         {
             StartPitch();
         }
+
+        if (Input.GetKeyDown(KeyCode.Alpha1)) ChangePitchPreset(0);
+        if (Input.GetKeyDown(KeyCode.Alpha2)) ChangePitchPreset(1);
+        if (Input.GetKeyDown(KeyCode.Alpha3)) ChangePitchPreset(2);
+        if (Input.GetKeyDown(KeyCode.Alpha4)) ChangePitchPreset(3);
     }
 
     private void CreateBall()
@@ -109,6 +119,14 @@ public class PitchController : MonoBehaviour
     /// </summary>
     public void OnReleaseBall()
     {
+        OnReleaseBallAsync().Forget();
+    }
+
+    /// <summary>
+    /// ボールリリース処理（非同期）
+    /// </summary>
+    private async UniTaskVoid OnReleaseBallAsync()
+    {
         int pitchIndex = Random.Range(0, _availablePresets.Count);
         ChangePitchPreset(pitchIndex);
 
@@ -117,14 +135,8 @@ public class PitchController : MonoBehaviour
             Debug.Log($"OnReleaseBall - 手の位置: {_releasePoint.position}");
         }
 
-        // 軌道計算 (静的メソッド呼び出し)
-        _currentTrajectory = PitchTrajectoryCalculator.PitchCalculate(
-            _currentPreset,
-            _releasePoint.position,
-            _targetPoint.position,
-            _enableDebugLogs,
-            _trajectoryDebugger
-        );
+        // 軌道計算（非同期）
+        await CalculateTrajectoryAsync();
 
         if (_currentTrajectory == null || _currentTrajectory.Count == 0)
         {
@@ -139,8 +151,60 @@ public class PitchController : MonoBehaviour
             DrawTrajectory(_currentTrajectory);
         }
 
-        // ボールを投げる
+        // ボールを投げる（軌道計算完了後）
         ThrowBall();
+    }
+
+    /// <summary>
+    /// 軌道を計算（非同期版）
+    /// </summary>
+    private async UniTask CalculateTrajectoryAsync()
+    {
+        if (_enableDebugLogs)
+        {
+            Debug.Log("========== 軌道計算開始 ==========");
+            Debug.Log($"Release: {_releasePoint.position}");
+            Debug.Log($"Target: {_targetPoint.position}");
+            Debug.Log($"球種: {_currentPreset.PitchName}");
+        }
+
+        var parameters = _currentPreset.CreateParameters(
+            _releasePoint.position,
+            _targetPoint.position
+        );
+
+        if (_enableDebugLogs)
+        {
+            Debug.Log($"Spin Axis: {parameters.SpinAxis}");
+            Debug.Log($"Spin Rate: {parameters.SpinRate} rpm");
+            Debug.Log($"Lift Coefficient: {parameters.LiftCoefficient}");
+            Debug.Log($"Velocity: {parameters.Velocity} m/s ({_currentPreset.VelocityKmh} km/h)");
+        }
+
+        // 別スレッドで軌道計算
+        _currentTrajectory = await UniTask.RunOnThreadPool(() =>
+        {
+            return BallPhysicsCalculator.CalculateTrajectory(parameters);
+        });
+
+        // メインスレッドに戻る
+        await UniTask.SwitchToMainThread();
+
+        if (_enableDebugLogs)
+        {
+            Debug.Log($"軌道ポイント数: {_currentTrajectory.Count}");
+
+            if (_currentTrajectory.Count > 0)
+            {
+                Debug.Log($"軌道開始点: {_currentTrajectory[0]}");
+                Debug.Log($"軌道終点: {_currentTrajectory[_currentTrajectory.Count - 1]}");
+
+                float curveAmount = CalculateTotalCurve(_currentTrajectory);
+                Debug.Log($"変化量: {curveAmount * 100f:F2}cm");
+            }
+
+            Debug.Log("========== 軌道計算完了 ==========");
+        }
     }
 
     private void ThrowBall()
@@ -151,19 +215,33 @@ public class PitchController : MonoBehaviour
         _ball.transform.position = _releasePoint.position;
         _ball.gameObject.SetActive(true);
 
+        // 軌道データをセット
         _ball.Initialize(_currentTrajectory, _currentPreset);
         _ball.OnBallReachedTarget += OnBallReachedTarget;
-        _ball.StartMoving();
 
         if (_enableDebugLogs)
         {
             Debug.Log("ボールリリース");
+            Debug.Log($"[PitchController] Ball.Trajectory: {(_ball.Trajectory != null ? _ball.Trajectory.Count.ToString() : "null")}");
         }
+
+        // 軌道セット後にイベント発火
+        if (_ballReleaseEvent != null)
+        {
+            _ballReleaseEvent.RaiseEvent(_ball);
+
+            if (_enableDebugLogs)
+            {
+                Debug.Log("[PitchController] Ball Release Event発火");
+            }
+        }
+        else
+        {
+            Debug.LogWarning("[PitchController] Ball Release Eventが設定されていません");
+        }
+        _ball.StartMoving();
     }
 
-    /// <summary>
-    /// ボールがターゲットに到達したときの処理
-    /// </summary>
     private void OnBallReachedTarget(Ball ball)
     {
         _isPitching = false;
@@ -173,12 +251,18 @@ public class PitchController : MonoBehaviour
             ball.OnBallReachedTarget -= OnBallReachedTarget;
         }
 
-        StartCoroutine(HideBallAfterDelay(1.0f));
+        HideBallAfterDelayAsync(1.0f).Forget();
     }
 
-    private IEnumerator HideBallAfterDelay(float delay)
+    /// <summary>
+    /// 遅延後にボールを非表示（UniTask版）
+    /// </summary>
+    private async UniTaskVoid HideBallAfterDelayAsync(float delay)
     {
-        yield return new WaitForSeconds(delay);
+        await UniTask.Delay(
+            System.TimeSpan.FromSeconds(delay),
+            cancellationToken: _cancellationTokenSource.Token
+        );
 
         if (_ball != null)
         {
@@ -186,20 +270,41 @@ public class PitchController : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// 球種を変更
-    /// </summary>
+    private float CalculateTotalCurve(List<Vector3> trajectory)
+    {
+        if (trajectory.Count < 3) return 0f;
+
+        Vector3 start = trajectory[0];
+        Vector3 end = trajectory[trajectory.Count - 1];
+        Vector3 straightLine = end - start;
+
+        float maxDeviation = 0f;
+
+        for (int i = 1; i < trajectory.Count - 1; i++)
+        {
+            Vector3 point = trajectory[i];
+            float deviation = Vector3.Cross(straightLine, point - start).magnitude / straightLine.magnitude;
+            if (deviation > maxDeviation)
+            {
+                maxDeviation = deviation;
+            }
+        }
+
+        return maxDeviation;
+    }
+
     public void ChangePitchPreset(int index)
     {
         if (index < 0 || index >= _availablePresets.Count) return;
 
         _currentPreset = _availablePresets[index];
-        Debug.Log($"球種変更: {_currentPreset.PitchName}");
+
+        if (_enableDebugLogs)
+        {
+            Debug.Log($"球種変更: {_currentPreset.PitchName}");
+        }
     }
 
-    /// <summary>
-    /// 軌道を描画
-    /// </summary>
     private void DrawTrajectory(List<Vector3> trajectory)
     {
         if (_trajectoryLine == null || trajectory == null) return;
@@ -218,9 +323,6 @@ public class PitchController : MonoBehaviour
         _trajectoryLine.numCornerVertices = 5;
     }
 
-    /// <summary>
-    /// セットアップの検証
-    /// </summary>
     private void ValidateSetup()
     {
         if (_pitcherAnimator == null)

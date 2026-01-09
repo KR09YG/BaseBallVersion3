@@ -33,7 +33,7 @@ public static class PitchTrajectoryCalculator
         }
 
         // ‹O“¹ŒvŽZ
-        List<Vector3> trajectory = PitchPhysicsCalculator.CalculateTrajectory(parameters);
+        List<Vector3> trajectory = BallPhysicsCalculator.CalculateTrajectory(parameters);
 
         if (enableDebugLogs)
         {
