@@ -15,6 +15,7 @@ GameObject:
   - component: {fileID: 6733308599683392655}
   - component: {fileID: 3601793050536732505}
   - component: {fileID: 1312026523896192441}
+  - component: {fileID: -6037269430355742844}
   m_Layer: 0
   m_Name: Ball
   m_TagString: Untagged
@@ -262,3 +263,25 @@ MonoBehaviour:
   _visualSpeedMultiplier: 0.5
   _swingEvent: {fileID: 11400000, guid: 8fa0298ac5f57be4a81bb47339fda11e, type: 2}
   _battingHitEvent: {fileID: 11400000, guid: d3d37fd7ce6b4354ebbe390628720fe2, type: 2}
+--- !u!114 &-6037269430355742844
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3351677104584871135}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0bf31baaed057db4daca8a1e8902be94, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _rigidbody: {fileID: 0}
+  _trajectoryEvent: {fileID: 11400000, guid: 9fcae77be9aa99b499a27f3f2aca57fc, type: 2}
+  _resultEvent: {fileID: 11400000, guid: be4eb26a82e1d234d9bc7e4c40fc97e7, type: 2}
+  _enableSpin: 1
+  _spinSpeedMultiplier: 1
+  _visualSpeedMultiplier: 1
+  _enableBounce: 1
+  _bounceSettings: {fileID: 11400000, guid: d268defa9993d3742894ba0253f8a9b0, type: 2}
+  _enableDebugLogs: 1
+  _showTrajectory: 1

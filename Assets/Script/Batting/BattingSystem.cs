@@ -22,7 +22,6 @@ public class BattingSystem : MonoBehaviour
             _isSwinging = true;
             _canSwing = false;
             _inputEvent.RaiseEvent();
-            StartBattingCalculate();
         }
     }
 

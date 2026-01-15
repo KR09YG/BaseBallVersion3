@@ -52,6 +52,9 @@ public class BattingCalculator : MonoBehaviour
         {
             Debug.LogError("[BattingCalculator] BattingHitEventが設定されていません");
         }
+
+        // ✅ デバッグ：イベント設定確認
+        Debug.Log($"[BattingCalculator] Start - TrajectoryEvent={(_trajectoryEvent != null ? "OK" : "NULL")}, ResultEvent={(_battedBallResultEvent != null ? "OK" : "NULL")}");
     }
 
     private void OnDestroy()
@@ -168,7 +171,7 @@ public class BattingCalculator : MonoBehaviour
         return isHit;
     }
 
-    
+
     /// <summary>
     /// 打球パラメータを計算（内部用）
     /// </summary>
@@ -239,9 +242,6 @@ public class BattingCalculator : MonoBehaviour
     /// </summary>
     private float CalculateHorizontalAngleFromTiming(float timing)
     {
-        // timing: -1.0（早すぎ）～ 0（ジャスト）～ 1.0（遅すぎ）
-
-        // ✅ BattingParametersから取得
         if (Mathf.Abs(timing) > _parameters.foulThreshold)
         {
             float excessTiming = (Mathf.Abs(timing) - _parameters.foulThreshold) / (1f - _parameters.foulThreshold);
@@ -262,7 +262,6 @@ public class BattingCalculator : MonoBehaviour
     {
         float verticalOffset = cursorPosition.y - ballPosition.y;
 
-        // ✅ BattingParametersから取得
         float normalizedOffset = verticalOffset * 10f;
         float angleOffset = Mathf.Sign(normalizedOffset) *
                            Mathf.Pow(Mathf.Abs(normalizedOffset), _parameters.launchAnglePower) *
@@ -270,7 +269,6 @@ public class BattingCalculator : MonoBehaviour
 
         float launchAngle = _parameters.idealLaunchAngle - angleOffset;
 
-        // ✅ BattingParametersから取得
         launchAngle = Mathf.Clamp(launchAngle, _parameters.minLaunchAngle, _parameters.maxLaunchAngle);
 
         if (_enableDebugLogs)
@@ -442,10 +440,7 @@ public class BattingCalculator : MonoBehaviour
             Debug.Log($"[BattingCalculator] ✅ ヒット成功！");
         }
 
-        if (_trajectoryEvent != null)
-        {
-            _trajectoryEvent.RaiseEvent(trajectory);
-        }
+        // ✅ ここでは軌道イベントのみ（既に CalculateBattedBallTrajectory で発火済み）
     }
 
     /// <summary>
@@ -460,9 +455,27 @@ public class BattingCalculator : MonoBehaviour
             Debug.Log($"[BattingCalculator] ❌ 空振り！誤差: {distance * 100f:F2}cm");
         }
 
+        // ✅ 空振り結果
+        BattingBallResult missResult = new BattingBallResult
+        {
+            BallType = BattingBallType.Miss,
+            IsHit = false,
+            Distance = 0f
+        };
+
+        // ✅✅✅ 重要：イベント発火の順序 ✅✅✅
+        // 1. 軌道イベントを先に発火（空）
         if (_trajectoryEvent != null)
         {
             _trajectoryEvent.RaiseEvent(new List<Vector3>());
+            Debug.Log("[BattingCalculator] ✓ 空振り：軌道イベント発火（空）");
+        }
+
+        // 2. 結果イベントを後に発火
+        if (_battedBallResultEvent != null)
+        {
+            _battedBallResultEvent.RaiseEvent(missResult);
+            Debug.Log("[BattingCalculator] ✓ 空振り：結果イベント発火");
         }
     }
 
@@ -671,10 +684,32 @@ public class BattingCalculator : MonoBehaviour
         if (_enableDebugLogs)
         {
             Debug.Log($"[打球結果] タイプ: {ballType}, 飛距離: {distance:F1}m");
-            // ... 既存のログ
         }
 
-        _battedBallResultEvent?.RaiseEvent(result);
+        // ✅✅✅ 重要：イベント発火の順序 ✅✅✅
+        Debug.Log($"[BattingCalculator] イベント発火開始 - 軌道点数={trajectory.Count}, 結果={ballType}");
+
+        // 1. 軌道イベントを先に発火
+        if (_trajectoryEvent != null)
+        {
+            _trajectoryEvent.RaiseEvent(trajectory);
+            Debug.Log($"[BattingCalculator] ✓ 軌道イベント発火完了: {trajectory.Count}点");
+        }
+        else
+        {
+            Debug.LogError("[BattingCalculator] BattingBallTrajectoryEventが設定されていません");
+        }
+
+        // 2. 結果イベントを後に発火
+        if (_battedBallResultEvent != null)
+        {
+            _battedBallResultEvent.RaiseEvent(result);
+            Debug.Log($"[BattingCalculator] ✓ 結果イベント発火完了: {ballType}");
+        }
+        else
+        {
+            Debug.LogError("[BattingCalculator] BattingResultEventが設定されていません");
+        }
 
         return trajectory;
     }
@@ -691,4 +726,3 @@ public class BattingCalculator : MonoBehaviour
         Gizmos.DrawWireSphere(cursorPos, _parameters.sweetSpotRadius);
     }
 }
-
