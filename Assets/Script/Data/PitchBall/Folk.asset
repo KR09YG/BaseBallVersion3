@@ -17,4 +17,4 @@ MonoBehaviour:
   PathControlRatio1: 0.6
   ControlPoint2: {x: 0, y: 0.2, z: 0}
   PathControlRatio2: 0.9
-  Time: 1
+  Time: 2
