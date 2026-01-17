@@ -3,6 +3,7 @@ using UnityEngine;
 
 /// <summary>
 /// 野球ボールの物理計算（共通）- 投球、打撃、バウンドすべて対応
+/// ※ Net(Layer: Net / MeshCollider) に当たったら Bounds 面で反射（軸平行面）
 /// </summary>
 public static class BallPhysicsCalculator
 {
@@ -51,6 +52,9 @@ public static class BallPhysicsCalculator
     private const float MIN_MAGNUS_DIRECTION_SQUARED = 0.0001f;
     private const float MIN_DRAG_VELOCITY = 0.001f;
 
+    // === Net反射：壁に貼り付くのを防ぐ微小押し戻し ===
+    private const float NET_EPSILON = 0.001f;
+
     /// <summary>
     /// 軌道シミュレーション設定
     /// </summary>
@@ -71,7 +75,6 @@ public static class BallPhysicsCalculator
     {
         Debug.Log("========== 軌道計算開始 ==========");
 
-        // 終点に到達する最適な初速を探索
         Vector3 optimalVelocity = FindOptimalVelocityAdvanced(
             parameters.ReleasePoint,
             parameters.TargetPoint,
@@ -83,12 +86,13 @@ public static class BallPhysicsCalculator
             bounceSettings
         );
 
-        // 最適な初速で最終的な軌道を計算
         var config = new SimulationConfig
         {
             DeltaTime = parameters.Settings?.DeltaTime ?? 0.01f,
             MaxSimulationTime = parameters.Settings?.MaxSimulationTime ?? 5f,
-            StopAtZ = parameters.Settings?.StopAtTarget == true ? parameters.Settings.StopPosition.z : (float?)null,
+            StopAtZ = parameters.Settings?.StopAtTarget == true
+                ? parameters.Settings.StopPosition.z
+                : (float?)null,
             BounceSettings = bounceSettings
         };
 
@@ -127,7 +131,6 @@ public static class BallPhysicsCalculator
     {
         Debug.Log("[最適化] 開始");
 
-        // 初速の初期推定
         Vector3 currentVelocity = EstimateInitialVelocityImproved(
             startPoint,
             targetPoint,
@@ -140,10 +143,8 @@ public static class BallPhysicsCalculator
         Vector3 bestVelocity = currentVelocity;
         float bestError = float.MaxValue;
 
-        // 誤差が一定以下になるもしくは最大反復に達するまで繰り返し
         for (int i = 0; i < MAX_OPTIMIZATION_ITERATIONS; i++)
         {
-            // テスト軌道を計算
             var config = new SimulationConfig
             {
                 DeltaTime = settings?.DeltaTime ?? 0.01f,
@@ -167,16 +168,13 @@ public static class BallPhysicsCalculator
                 break;
             }
 
-            // 終点の誤差を計算
             Vector3 endPoint = testTrajectory[testTrajectory.Count - 1];
             Vector3 error = targetPoint - endPoint;
 
-            // Z座標（距離方向）の誤差を重視
             float errorZ = Mathf.Abs(error.z);
             float errorXY = new Vector2(error.x, error.y).magnitude;
             float totalError = errorZ * Z_ERROR_WEIGHT + errorXY;
 
-            // より良い結果を保存
             if (totalError < bestError)
             {
                 bestError = totalError;
@@ -185,38 +183,32 @@ public static class BallPhysicsCalculator
 
             Debug.Log($"[最適化] 反復 {i + 1}: 誤差 XY={errorXY * 100f:F2}cm, Z={errorZ * 100f:F2}cm, 総合={totalError * 100f:F2}");
 
-            // 収束判定（Z方向を特に重視）
             if (errorZ < POSITION_TOLERANCE * Z_TOLERANCE_FACTOR && errorXY < POSITION_TOLERANCE)
             {
                 Debug.Log($"[最適化] 収束成功！反復: {i + 1}回");
                 return currentVelocity;
             }
 
-            // 速度の調整（適応的な減衰係数）
             float progress = (float)i / MAX_OPTIMIZATION_ITERATIONS;
 
-            // Z方向の調整（距離が足りない/行き過ぎ）
             if (errorZ > Z_POSITION_TOLERANCE)
             {
                 float zAdjustment = error.z * Mathf.Lerp(Z_ADJUSTMENT_INITIAL, Z_ADJUSTMENT_FINAL, progress);
                 currentVelocity.z += zAdjustment;
             }
 
-            // XY方向の調整（横・高さのズレ）
             Vector3 xyAdjustment = new Vector3(error.x, error.y, 0) *
                                    Mathf.Lerp(XY_ADJUSTMENT_INITIAL, XY_ADJUSTMENT_FINAL, progress);
             currentVelocity += xyAdjustment;
 
-            // 速度の大きさを目標に近づける（方向は自由）
             float currentSpeed = currentVelocity.magnitude;
             float speedError = desiredSpeed - currentSpeed;
 
-            // 速度が大きくズレている場合のみ調整
             if (Mathf.Abs(speedError) > desiredSpeed * SPEED_ERROR_THRESHOLD)
             {
                 float speedAdjustmentFactor = Mathf.Lerp(SPEED_ADJUSTMENT_INITIAL, SPEED_ADJUSTMENT_FINAL, progress);
                 currentVelocity = currentVelocity.normalized *
-                                 Mathf.Lerp(currentSpeed, desiredSpeed, speedAdjustmentFactor);
+                                  Mathf.Lerp(currentSpeed, desiredSpeed, speedAdjustmentFactor);
             }
 
             Debug.Log($"[最適化] 調整後の初速: {currentVelocity}, 速度: {currentVelocity.magnitude:F2} m/s");
@@ -244,6 +236,7 @@ public static class BallPhysicsCalculator
         float dragFactor = DRAG_FACTOR_BASE +
                           (DRAG_COEFFICIENT * AIR_DENSITY * CROSS_SECTION * desiredSpeed) /
                           (DRAG_MASS_FACTOR * BALL_MASS);
+
         float estimatedTime = (horizontalDist / desiredSpeed) * dragFactor;
 
         Debug.Log($"[初速推定] 距離: {horizontalDist:F2}m, 推定時間: {estimatedTime:F3}s");
@@ -251,7 +244,6 @@ public static class BallPhysicsCalculator
         float gravity = Mathf.Abs(Physics.gravity.y);
         float gravityDrop = GRAVITY_HALF * gravity * estimatedTime * estimatedTime;
 
-        // マグヌス効果の推定
         float angularVelocity = spinRateRPM * RPM_TO_RAD_PER_SEC;
         Vector3 forwardDir = displacement.normalized;
         Vector3 spinVector = spinAxisNormalized * angularVelocity;
@@ -279,6 +271,7 @@ public static class BallPhysicsCalculator
 
     /// <summary>
     /// 物理シミュレーション（統一版・バウンド対応）
+    /// ※ Net(Layer: Net / MeshCollider)に当たったら Bounds面で反射（enableWallBounce時）
     /// </summary>
     public static List<Vector3> SimulateTrajectory(
         Vector3 startPosition,
@@ -310,9 +303,8 @@ public static class BallPhysicsCalculator
                 points.Add(position);
 
                 if (velocity.magnitude < config.BounceSettings.stopVelocityThreshold)
-                {
                     break;
-                }
+
                 continue;
             }
 
@@ -351,15 +343,10 @@ public static class BallPhysicsCalculator
 
                     bounceCount++;
 
-                    if (shouldRoll)
-                    {
-                        isRolling = true;
-                    }
+                    if (shouldRoll) isRolling = true;
 
                     if (bounceCount >= config.BounceSettings.maxBounces)
-                    {
                         break;
-                    }
 
                     currentTime += config.DeltaTime * t;
                     continue;
@@ -368,9 +355,19 @@ public static class BallPhysicsCalculator
                 // === 壁バウンド判定 ===
                 if (config.BounceSettings.enableWallBounce)
                 {
-                    if (IsOutOfBounds(nextPosition, config.BounceSettings.fieldBounds))
+                    // 1) Netレイヤーに当たったら bounds面反射（優先）
+                    if (!TryReflectOnNetBoundsPlane(
+                            position,
+                            ref nextPosition,
+                            ref velocity,
+                            config.DeltaTime,
+                            config.BounceSettings.wallRestitution))
                     {
-                        HandleWallBounce(ref nextPosition, ref velocity, config.BounceSettings);
+                        // 2) 当たってない場合は従来のfieldBounds反射（外周など）
+                        if (IsOutOfBounds(nextPosition, config.BounceSettings.fieldBounds))
+                        {
+                            HandleWallBounce(ref nextPosition, ref velocity, config.BounceSettings);
+                        }
                     }
                 }
             }
@@ -386,13 +383,11 @@ public static class BallPhysicsCalculator
                 break;
             }
 
-            // === フィールド外判定（✅ 修正箇所） ===
+            // === フィールド外判定（外周に出たら停止） ===
             if (config.BounceSettings != null && config.BounceSettings.enableWallBounce)
             {
                 if (IsOutOfBounds(position, config.BounceSettings.fieldBounds))
-                {
                     break;
-                }
             }
 
             if (points.Count > MAX_TRAJECTORY_POINTS)
@@ -451,7 +446,7 @@ public static class BallPhysicsCalculator
     }
 
     /// <summary>
-    /// 壁バウンド処理
+    /// 壁バウンド処理（fieldBounds用）
     /// </summary>
     public static void HandleWallBounce(ref Vector3 position, ref Vector3 velocity, BounceSettings settings)
     {
@@ -568,5 +563,67 @@ public static class BallPhysicsCalculator
         }
 
         return trajectory.Count > 0 ? trajectory[trajectory.Count - 1] : Vector3.zero;
+    }
+
+    // =========================================================
+    // ✅ Net(Layer: Net) 反射（MeshColliderにRaycastし、Bounds面で反射）
+    // =========================================================
+
+    private static bool TryReflectOnNetBoundsPlane(
+        Vector3 position,
+        ref Vector3 nextPosition,
+        ref Vector3 velocity,
+        float deltaTime,
+        float restitution)
+    {
+        int netLayer = LayerMask.NameToLayer("Net");
+        if (netLayer < 0) return false;
+
+        int netMask = 1 << netLayer;
+
+        Vector3 segment = nextPosition - position;
+        float dist = segment.magnitude;
+        if (dist < 0.0001f) return false;
+
+        Vector3 dir = segment / dist;
+
+        if (!Physics.Raycast(position, dir, out RaycastHit hit, dist, netMask, QueryTriggerInteraction.Ignore))
+            return false;
+
+        float tHit = hit.distance / dist; // 0..1
+        Vector3 hitPos = Vector3.Lerp(position, nextPosition, tHit);
+
+        Bounds b = hit.collider.bounds;
+        Vector3 normal = GetBoundsPlaneNormalXZ(b, hitPos, dir);
+
+        Vector3 reflected = Vector3.Reflect(velocity, normal) * restitution;
+
+        hitPos += normal * NET_EPSILON;
+
+        float remaining = 1f - tHit;
+        nextPosition = hitPos + reflected * (deltaTime * remaining);
+
+        velocity = reflected;
+        return true;
+    }
+
+    private static Vector3 GetBoundsPlaneNormalXZ(Bounds b, Vector3 hitPos, Vector3 dir)
+    {
+        float dxMin = Mathf.Abs(hitPos.x - b.min.x);
+        float dxMax = Mathf.Abs(hitPos.x - b.max.x);
+        float dzMin = Mathf.Abs(hitPos.z - b.min.z);
+        float dzMax = Mathf.Abs(hitPos.z - b.max.z);
+
+        float min = dxMin;
+        Vector3 normal = Vector3.right; // x=min -> +X（内側）
+
+        if (dxMax < min) { min = dxMax; normal = Vector3.left; }
+        if (dzMin < min) { min = dzMin; normal = Vector3.forward; }
+        if (dzMax < min) { min = dzMax; normal = Vector3.back; }
+
+        if (Vector3.Dot(normal, dir) > 0f)
+            normal = -normal;
+
+        return normal.normalized;
     }
 }
