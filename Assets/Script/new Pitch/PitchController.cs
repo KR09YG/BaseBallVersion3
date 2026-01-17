@@ -26,7 +26,7 @@ public class PitchController : MonoBehaviour
     [Header("イベント")]
     [SerializeField] private PitchBallReleaseEvent _ballReleaseEvent;
 
-    private Ball _ball;
+    private PitchBallMove _ball;
     private List<Vector3> _currentTrajectory;
     private bool _isPitching = false;
     private CancellationTokenSource _cancellationTokenSource;
@@ -73,11 +73,11 @@ public class PitchController : MonoBehaviour
         }
 
         GameObject ballObj = Instantiate(_ballPrefab);
-        _ball = ballObj.GetComponent<Ball>();
+        _ball = ballObj.GetComponent<PitchBallMove>();
 
         if (_ball == null)
         {
-            _ball = ballObj.AddComponent<Ball>();
+            _ball = ballObj.AddComponent<PitchBallMove>();
         }
 
         _ball.gameObject.SetActive(false);
@@ -211,19 +211,16 @@ public class PitchController : MonoBehaviour
     {
         if (_ball == null) return;
 
-        _ball.ResetBall();
         _ball.transform.position = _releasePoint.position;
         _ball.gameObject.SetActive(true);
-
-        // 軌道データをセット
-        _ball.Initialize(_currentTrajectory, _currentPreset);
-        _ball.OnBallReachedTarget += OnBallReachedTarget;
 
         if (_enableDebugLogs)
         {
             Debug.Log("ボールリリース");
             Debug.Log($"[PitchController] Ball.Trajectory: {(_ball.Trajectory != null ? _ball.Trajectory.Count.ToString() : "null")}");
         }
+
+        _ball.Initialize(_currentTrajectory, _currentPreset);
 
         // 軌道セット後にイベント発火
         if (_ballReleaseEvent != null)
@@ -239,17 +236,12 @@ public class PitchController : MonoBehaviour
         {
             Debug.LogWarning("[PitchController] Ball Release Eventが設定されていません");
         }
-        _ball.StartMoving();
+
     }
 
-    private void OnBallReachedTarget(Ball ball)
+    private void OnBallReachedTarget(PitchBallMove ball)
     {
         _isPitching = false;
-
-        if (ball != null)
-        {
-            ball.OnBallReachedTarget -= OnBallReachedTarget;
-        }
 
         HideBallAfterDelayAsync(1.0f).Forget();
     }

@@ -15,13 +15,14 @@ public class StrikeZoneUI : MonoBehaviour
 
     [Header("イベント")]
     [SerializeField] private PitchBallReleaseEvent _pitchBallReleaseEvent;
+    [SerializeField] private BallReachedTargetEvent _ballReachedTargetEvent;
 
     [Header("表示設定")]
     [SerializeField] private Color _strikeColor = new Color(0f, 1f, 0f, 0.8f);
     [SerializeField] private Color _ballColor = new Color(1f, 0f, 0f, 0.8f);
     [SerializeField] private bool _enableDebugLogs = false;
 
-    private Ball _currentBall;
+    private PitchBallMove _currentBall;
     private Vector3 _predictedPosition;
     private bool _hasPrediction = false;
     private CancellationTokenSource _cancellationTokenSource;
@@ -64,22 +65,19 @@ public class StrikeZoneUI : MonoBehaviour
         {
             Debug.LogError("[StrikeZoneUI] ❌ PitchBallReleaseEventが設定されていません！");
         }
+
+        if (_ballReachedTargetEvent != null)
+        {
+            _ballReachedTargetEvent.RegisterListener(OnBallReachedTarget);
+        }
+        else
+        {
+            Debug.LogError("[StrikeZoneUI] ❌ BallReachedTargetEventが設定されていません！");
+        }
     }
 
     private void OnDestroy()
     {
-        // イベント購読解除
-        if (_pitchBallReleaseEvent != null)
-        {
-            _pitchBallReleaseEvent.UnregisterListener(OnBallReleased);
-        }
-
-        // Ball.OnBallReachedTarget購読解除
-        if (_currentBall != null)
-        {
-            _currentBall.OnBallReachedTarget -= OnBallReachedTarget;
-        }
-
         // キャンセル
         _cancellationTokenSource?.Cancel();
         _cancellationTokenSource?.Dispose();
@@ -88,17 +86,11 @@ public class StrikeZoneUI : MonoBehaviour
     /// <summary>
     /// ボールリリース時の処理（PitchBallReleaseEventから呼ばれる）
     /// </summary>
-    private void OnBallReleased(Ball ball)
+    private void OnBallReleased(PitchBallMove ball)
     {
         if (_enableDebugLogs)
         {
             Debug.Log("[StrikeZoneUI] OnBallReleased呼び出し");
-        }
-
-        // 前のBallの購読を解除
-        if (_currentBall != null)
-        {
-            _currentBall.OnBallReachedTarget -= OnBallReachedTarget;
         }
 
         _currentBall = ball;
@@ -110,9 +102,6 @@ public class StrikeZoneUI : MonoBehaviour
             return;
         }
 
-        // Ball.OnBallReachedTargetを購読
-        _currentBall.OnBallReachedTarget += OnBallReachedTarget;
-
         // 通過予測を計算
         CalculatePredictedPosition(ball);
     }
@@ -120,7 +109,7 @@ public class StrikeZoneUI : MonoBehaviour
     /// <summary>
     /// ストライクゾーン通過予測位置を計算
     /// </summary>
-    private void CalculatePredictedPosition(Ball ball)
+    private void CalculatePredictedPosition(PitchBallMove ball)
     {
         if (_enableDebugLogs)
         {
@@ -223,7 +212,7 @@ public class StrikeZoneUI : MonoBehaviour
     /// <summary>
     /// ボール到達時の処理（Ball.OnBallReachedTargetから呼ばれる）
     /// </summary>
-    private void OnBallReachedTarget(Ball ball)
+    private void OnBallReachedTarget(PitchBallMove ball)
     {
         if (ball == null) return;
 
@@ -238,8 +227,6 @@ public class StrikeZoneUI : MonoBehaviour
             Debug.Log($"[StrikeZoneUI] 予測誤差: {error * 100f:F2}cm");
         }
 
-        // 購読解除
-        ball.OnBallReachedTarget -= OnBallReachedTarget;
         _currentBall = null;
 
         // 遅延後にマーカー非表示

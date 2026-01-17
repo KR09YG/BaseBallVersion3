@@ -107,7 +107,7 @@ public class BattingAnimationController : MonoBehaviour
     /// <summary>
     /// ボールリリース時（PitchBallReleaseEventから呼ばれる）
     /// </summary>
-    private void OnBallReleased(Ball ball)
+    private void OnBallReleased(PitchBallMove ball)
     {
         if (_currentState != BattingState.Idle)
         {

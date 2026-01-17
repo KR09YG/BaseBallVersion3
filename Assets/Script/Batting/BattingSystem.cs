@@ -4,15 +4,19 @@ public class BattingSystem : MonoBehaviour
 {
     [SerializeField] private BattingInputEvent _inputEvent;
     [SerializeField] private SwingEvent _swingEvent;
-    [SerializeField] private PitchBallReleaseEvent _startPitch;
-    [SerializeField] private PitchBallReleaseEvent _endPitch;
+    [SerializeField] private PitchBallReleaseEvent _releseEvent;
 
     private bool _canSwing = true;
     private bool _isSwinging = false;
 
     private void Awake()
     {
-        _startPitch.RegisterListener(ReleasedBall);
+        _releseEvent.RegisterListener(ReleasedBall);
+    }
+
+    private void OnDestroy()
+    {
+        _releseEvent.UnregisterListener(ReleasedBall);
     }
 
     private void Update()
@@ -33,7 +37,7 @@ public class BattingSystem : MonoBehaviour
     /// <summary>
     /// ボールがリリースされたときの処理
     /// </summary>
-    private void ReleasedBall(Ball ball)
+    private void ReleasedBall(PitchBallMove ball)
     {
         Debug.Log("[BattingSystem] Ball Released - Swing is now allowed.");
         _canSwing = true;

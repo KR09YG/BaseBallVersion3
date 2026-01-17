@@ -4,19 +4,19 @@ using UnityEngine;
 [CreateAssetMenu(fileName = "BallReachedTargetEvent", menuName = "Scriptable Objects/NewScriptableObjectScript")]
 public class BallReachedTargetEvent : ScriptableObject
 {
-    private Action<Ball> _reachedAction;
+    private Action<PitchBallMove> _reachedAction;
 
-    public void RegisterListener(Action<Ball> listener)
+    public void RegisterListener(Action<PitchBallMove> listener)
     {
         _reachedAction += listener;
     }
 
-    public void UnregisterListener(Action<Ball> listener)
+    public void UnregisterListener(Action<PitchBallMove> listener)
     {
         _reachedAction -= listener;
     }
 
-    public void RaiseEvent(Ball ball)
+    public void RaiseEvent(PitchBallMove ball)
     {
         _reachedAction?.Invoke(ball);
     }
