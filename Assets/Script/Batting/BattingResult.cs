@@ -18,6 +18,7 @@ public struct BattingBallResult
     public bool IsFoul;
 
     public BattingBallType BallType;
+    public Vector3 LandingPosition;
     public float Distance;
     public bool IsHit;
 }
