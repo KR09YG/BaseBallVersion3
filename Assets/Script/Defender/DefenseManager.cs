@@ -52,8 +52,9 @@ public class DefenseManager : MonoBehaviour
     /// <summary>
     /// ç”õ‘¤‚ªƒLƒƒƒbƒ`‚µ‚½Û‚Ìˆ—
     /// </summary>
-    public void OnDefenderCatchEvent(FielderController catchDefender)
+    public void OnDefenderCatchEvent(FielderController catchDefender,bool isFly)
     {
+        if (isFly) Debug.Log("Fly Ball Caught");
         BaseType baseType = DefenseThrowDecisionCalculator.ThrowDicision();
         catchDefender.ThrowBall(baseType);
     }

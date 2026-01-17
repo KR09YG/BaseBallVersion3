@@ -11,8 +11,8 @@ public class FielderController : MonoBehaviour
     public void MoveTo(Vector3 targetPos, float timeLimit)
     {
         Debug.Log($"{_data.Position} MoveTo {targetPos} in {timeLimit} sec");
-        transform.DOMove(new Vector3(targetPos.x,transform.position.y,targetPos.z), timeLimit).
-            SetEase(Ease.Linear).OnComplete(() => _defenderCatchEvent.RaiseEvent(this));
+        transform.DOMove(new Vector3(targetPos.x, transform.position.y, targetPos.z), timeLimit).
+            SetEase(Ease.Linear);
     }
 
     public void MoveToCutoff()
@@ -41,7 +41,7 @@ public class FielderController : MonoBehaviour
         if (other.CompareTag("Ball"))
         {
             Debug.Log($"{_data.Position} caught the ball!");
-            _defenderCatchEvent.RaiseEvent(this);
+            _defenderCatchEvent.RaiseEvent(this, other);
         }
     }
 }

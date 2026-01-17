@@ -17,33 +17,11 @@ public class BattingCalculator : MonoBehaviour
     [SerializeField] private BattingBallTrajectoryEvent _trajectoryEvent;
     [SerializeField] private BattingResultEvent _battedBallResultEvent;
 
-    [Header("軌道可視化")]
-    [SerializeField] private bool _showTrajectory = true;
-    [SerializeField] private LineRenderer _trajectoryLine;
-    [SerializeField] private Color _hitTrajectoryColor = Color.green;
-    [SerializeField] private Color _missTrajectoryColor = Color.red;
-
     [Header("デバッグ")]
     [SerializeField] private bool _enableDebugLogs = true;
 
     private void Start()
     {
-        // LineRendererを自動生成（なければ）
-        if (_trajectoryLine == null && _showTrajectory)
-        {
-            GameObject lineObj = new GameObject("BattedBallTrajectoryLine");
-            lineObj.transform.SetParent(transform);
-            _trajectoryLine = lineObj.AddComponent<LineRenderer>();
-
-            _trajectoryLine.startWidth = 0.05f;
-            _trajectoryLine.endWidth = 0.05f;
-            _trajectoryLine.material = new Material(Shader.Find("Sprites/Default"));
-            _trajectoryLine.startColor = _hitTrajectoryColor;
-            _trajectoryLine.endColor = _hitTrajectoryColor;
-            _trajectoryLine.useWorldSpace = true;
-            _trajectoryLine.enabled = false;
-        }
-
         if (_hitEvent != null)
         {
             _hitEvent.RegisterListener(OnHitAttempt);
@@ -53,7 +31,7 @@ public class BattingCalculator : MonoBehaviour
             Debug.LogError("[BattingCalculator] BattingHitEventが設定されていません");
         }
 
-        // ✅ デバッグ：イベント設定確認
+        // デバッグ：イベント設定確認
         Debug.Log($"[BattingCalculator] Start - TrajectoryEvent={(_trajectoryEvent != null ? "OK" : "NULL")}, ResultEvent={(_battedBallResultEvent != null ? "OK" : "NULL")}");
     }
 
@@ -68,7 +46,7 @@ public class BattingCalculator : MonoBehaviour
     /// <summary>
     /// ヒット試行時の処理（BattingHitEventから呼ばれる）
     /// </summary>
-    private void OnHitAttempt(Ball ball)
+    private void OnHitAttempt(PitchBallMove ball)
     {
         if (ball == null)
         {
@@ -95,31 +73,16 @@ public class BattingCalculator : MonoBehaviour
             // 投球速度を取得
             Vector3 pitchVelocity = GetPitchVelocity(ball, ballPosition);
 
-            // 打球軌道を計算して返す
-            List<Vector3> trajectory = CalculateBattedBallTrajectory(
+            // 打球軌道を計算
+            CalculateBattedBallTrajectory(
                 pitchVelocity,
                 swingPosition,
                 ballPosition,
                 ball
             );
-
-            // 軌道を描画
-            if (_showTrajectory)
-            {
-                DrawTrajectory(trajectory, _hitTrajectoryColor);
-            }
-
-            // 結果を通知
-            OnHitSuccess(trajectory);
         }
         else
         {
-            // ミスの場合は軌道をクリア
-            if (_showTrajectory)
-            {
-                ClearTrajectory();
-            }
-
             // ミス処理
             OnMiss(swingPosition, ballPosition);
         }
@@ -133,7 +96,7 @@ public class BattingCalculator : MonoBehaviour
     /// <summary>
     /// ボールのストライクゾーン通過位置を取得
     /// </summary>
-    private Vector3 GetBallPositionAtStrikeZone(Ball ball)
+    private Vector3 GetBallPositionAtStrikeZone(PitchBallMove ball)
     {
         List<Vector3> trajectory = ball.Trajectory;
 
@@ -171,7 +134,6 @@ public class BattingCalculator : MonoBehaviour
         return isHit;
     }
 
-
     /// <summary>
     /// 打球パラメータを計算（内部用）
     /// </summary>
@@ -179,7 +141,7 @@ public class BattingCalculator : MonoBehaviour
         Vector3 pitchVelocity,
         Vector3 swingPosition,
         Vector3 ballPosition,
-        Ball ball)
+        PitchBallMove ball)
     {
         // インパクト距離（芯からのズレ）
         float impactDistance = Vector3.Distance(swingPosition, ballPosition);
@@ -284,7 +246,7 @@ public class BattingCalculator : MonoBehaviour
     /// <summary>
     /// ボールの位置からタイミングを計算（簡易版）
     /// </summary>
-    private float CalculateSwingTimingSimple(Ball ball)
+    private float CalculateSwingTimingSimple(PitchBallMove ball)
     {
         Vector3 ballPosition = ball.transform.position;
         float strikeZoneZ = _strikeZone.Center.z;
@@ -314,7 +276,7 @@ public class BattingCalculator : MonoBehaviour
     /// <summary>
     /// 投球速度を取得
     /// </summary>
-    private Vector3 GetPitchVelocity(Ball ball, Vector3 ballPosition)
+    private Vector3 GetPitchVelocity(PitchBallMove ball, Vector3 ballPosition)
     {
         List<Vector3> trajectory = ball.Trajectory;
         float strikeZoneZ = _strikeZone.Center.z;
@@ -431,19 +393,6 @@ public class BattingCalculator : MonoBehaviour
     }
 
     /// <summary>
-    /// ヒット成功時の処理
-    /// </summary>
-    private void OnHitSuccess(List<Vector3> trajectory)
-    {
-        if (_enableDebugLogs)
-        {
-            Debug.Log($"[BattingCalculator] ✅ ヒット成功！");
-        }
-
-        // ✅ ここでは軌道イベントのみ（既に CalculateBattedBallTrajectory で発火済み）
-    }
-
-    /// <summary>
     /// ミス時の処理
     /// </summary>
     private void OnMiss(Vector3 swingPosition, Vector3 ballPosition)
@@ -455,15 +404,16 @@ public class BattingCalculator : MonoBehaviour
             Debug.Log($"[BattingCalculator] ❌ 空振り！誤差: {distance * 100f:F2}cm");
         }
 
-        // ✅ 空振り結果
+        // 空振り結果
         BattingBallResult missResult = new BattingBallResult
         {
             BallType = BattingBallType.Miss,
             IsHit = false,
-            Distance = 0f
+            Distance = 0f,
+            LandingPosition = Vector3.zero  // ✅ 追加
         };
 
-        // ✅✅✅ 重要：イベント発火の順序 ✅✅✅
+        // イベント発火の順序
         // 1. 軌道イベントを先に発火（空）
         if (_trajectoryEvent != null)
         {
@@ -476,33 +426,6 @@ public class BattingCalculator : MonoBehaviour
         {
             _battedBallResultEvent.RaiseEvent(missResult);
             Debug.Log("[BattingCalculator] ✓ 空振り：結果イベント発火");
-        }
-    }
-
-    /// <summary>
-    /// 軌道を描画
-    /// </summary>
-    private void DrawTrajectory(List<Vector3> trajectory, Color color)
-    {
-        if (_trajectoryLine == null || trajectory == null || trajectory.Count == 0)
-            return;
-
-        _trajectoryLine.enabled = true;
-        _trajectoryLine.positionCount = trajectory.Count;
-        _trajectoryLine.SetPositions(trajectory.ToArray());
-        _trajectoryLine.startColor = color;
-        _trajectoryLine.endColor = color;
-    }
-
-    /// <summary>
-    /// 軌道をクリア
-    /// </summary>
-    private void ClearTrajectory()
-    {
-        if (_trajectoryLine != null)
-        {
-            _trajectoryLine.enabled = false;
-            _trajectoryLine.positionCount = 0;
         }
     }
 
@@ -606,7 +529,7 @@ public class BattingCalculator : MonoBehaviour
         }
 
         // ヒット判定（フェアゾーンで一定距離以上）
-        if (distance >= 30f)  // 30m以上はヒット扱い
+        if (distance >= 30f)
         {
             return BattingBallType.Hit;
         }
@@ -618,13 +541,13 @@ public class BattingCalculator : MonoBehaviour
     /// <summary>
     /// 打球軌道を計算（メインメソッド）- 結果判定追加版
     /// </summary>
-    private List<Vector3> CalculateBattedBallTrajectory(
+    private void CalculateBattedBallTrajectory(
         Vector3 pitchVelocity,
         Vector3 swingPosition,
         Vector3 ballPosition,
-        Ball ball)
+        PitchBallMove ball)
     {
-        // === 内部計算用のBattedBallResult ===
+        // 打球パラメータ計算
         BattingBallResult result = CalculateBattedBallParameters(
             pitchVelocity,
             swingPosition,
@@ -637,7 +560,7 @@ public class BattingCalculator : MonoBehaviour
             LogBattedBallResult(result);
         }
 
-        // === BallPhysicsCalculatorで軌道計算 ===
+        // BallPhysicsCalculatorで軌道計算
         float liftCoefficient = CalculateLiftCoefficient(result.SpinRate);
 
         var config = new BallPhysicsCalculator.SimulationConfig
@@ -657,7 +580,14 @@ public class BattingCalculator : MonoBehaviour
             config
         );
 
-        // ✅ 打球タイプを判定
+        // ✅ 落下地点を取得
+        Vector3 landingPosition = Vector3.zero;
+        if (trajectory.Count > 0)
+        {
+            landingPosition = trajectory[trajectory.Count - 1];
+        }
+
+        // 打球タイプを判定
         BattingBallType ballType = DetermineBattedBallType(
             trajectory,
             result.LaunchAngle,
@@ -665,28 +595,28 @@ public class BattingCalculator : MonoBehaviour
             ballPosition
         );
 
-        // ✅ 飛距離を計算
+        // 飛距離を計算
         float distance = 0f;
         if (trajectory.Count > 0)
         {
-            Vector3 endPosition = trajectory[trajectory.Count - 1];
             distance = Vector3.Distance(
                 new Vector3(ballPosition.x, 0, ballPosition.z),
-                new Vector3(endPosition.x, 0, endPosition.z)
+                new Vector3(landingPosition.x, 0, landingPosition.z)
             );
         }
 
-        // ✅ 結果を更新
+        // 結果を更新
         result.BallType = ballType;
         result.Distance = distance;
         result.IsHit = (ballType == BattingBallType.Hit || ballType == BattingBallType.HomeRun);
+        result.LandingPosition = landingPosition;  // ✅ 追加
 
         if (_enableDebugLogs)
         {
-            Debug.Log($"[打球結果] タイプ: {ballType}, 飛距離: {distance:F1}m");
+            Debug.Log($"[打球結果] タイプ: {ballType}, 飛距離: {distance:F1}m, 落下地点: {landingPosition}");
         }
 
-        // ✅✅✅ 重要：イベント発火の順序 ✅✅✅
+        // イベント発火の順序
         Debug.Log($"[BattingCalculator] イベント発火開始 - 軌道点数={trajectory.Count}, 結果={ballType}");
 
         // 1. 軌道イベントを先に発火
@@ -704,14 +634,12 @@ public class BattingCalculator : MonoBehaviour
         if (_battedBallResultEvent != null)
         {
             _battedBallResultEvent.RaiseEvent(result);
-            Debug.Log($"[BattingCalculator] ✓ 結果イベント発火完了: {ballType}");
+            Debug.Log($"[BattingCalculator] ✓ 結果イベント発火完了: {ballType}, 落下地点: {landingPosition}");
         }
         else
         {
             Debug.LogError("[BattingCalculator] BattingResultEventが設定されていません");
         }
-
-        return trajectory;
     }
 
     private void OnDrawGizmos()
