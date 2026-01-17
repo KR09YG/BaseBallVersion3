@@ -5,9 +5,10 @@ public static class DefenseCalculator
 {
     public static CatchPlan CalculateCatchPlan(
     List<Vector3> trajectory,
+    BattingBallResult result,
     float deltaTime,
     List<FielderController> fielders)
-    {
+    {        
         CatchPlan bestPlan = new CatchPlan
         {
             CanCatch = false,
@@ -23,6 +24,12 @@ public static class DefenseCalculator
             foreach (var fielder in fielders)
             {
                 FielderData data = fielder.Data;
+
+                // 野手の高さより高い位置にボールがある場合はスルー
+                if (ballPos.y > data.CatchHeight)
+                {
+                    continue;
+                }
 
                 // 野手がボールに到達するのにかかる時間
                 float moveTime =
@@ -71,8 +78,6 @@ public static class DefenseCalculator
                 }
             }
         }
-
-        Debug.Log(bestPlan.Catcher);
 
         return bestPlan;
     }
