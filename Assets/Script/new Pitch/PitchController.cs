@@ -25,6 +25,7 @@ public class PitchController : MonoBehaviour
 
     [Header("イベント")]
     [SerializeField] private PitchBallReleaseEvent _ballReleaseEvent;
+    [SerializeField] private BallSpawnedEvent _ballSpawnedEvent;
 
     private PitchBallMove _ball;
     private List<Vector3> _currentTrajectory;
@@ -74,6 +75,7 @@ public class PitchController : MonoBehaviour
 
         GameObject ballObj = Instantiate(_ballPrefab);
         _ball = ballObj.GetComponent<PitchBallMove>();
+        _ballSpawnedEvent.RaiseEvent(ballObj);
 
         if (_ball == null)
         {
