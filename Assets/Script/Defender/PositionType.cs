@@ -10,3 +10,9 @@ public enum PositionType
     CenterField,    // ’†Œ˜Žè
     RightField      // ‰E—ƒŽè
 }
+
+public enum PositionGroupType
+{
+    Infield,    // “à–ìŽè
+    Outfield    // ŠO–ìŽè
+}
