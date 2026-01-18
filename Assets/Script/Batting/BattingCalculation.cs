@@ -363,7 +363,8 @@ public class BattingCalculator : MonoBehaviour
     private Vector3 CalculateSpinAxis(Vector3 direction)
     {
         Vector3 horizontalDirection = new Vector3(direction.x, 0, direction.z).normalized;
-        Vector3 spinAxis = Vector3.Cross(Vector3.up, horizontalDirection).normalized;
+
+        Vector3 spinAxis = Vector3.Cross(horizontalDirection, Vector3.up).normalized;
 
         if (spinAxis.sqrMagnitude < 0.01f)
         {
@@ -372,6 +373,7 @@ public class BattingCalculator : MonoBehaviour
 
         return spinAxis;
     }
+
 
     /// <summary>
     /// スピン量を計算
