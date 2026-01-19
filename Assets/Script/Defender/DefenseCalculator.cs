@@ -8,7 +8,16 @@ public static class DefenseCalculator
     BattingBallResult result,
     float deltaTime,
     List<FielderController> fielders)
-    {        
+    {
+        if (result.IsFoul)
+        {
+            Debug.Log("Foul Ball - No Defense Action");
+            return new CatchPlan
+            {
+                CanCatch = false,
+                CatchTime = float.MaxValue
+            };
+        }
         CatchPlan bestPlan = new CatchPlan
         {
             CanCatch = false,
@@ -31,9 +40,19 @@ public static class DefenseCalculator
                     continue;
                 }
 
-                // 野手がボールに到達するのにかかる時間
+                Vector2 fielderXZ = new Vector2(
+                    fielder.transform.position.x,
+                    fielder.transform.position.z
+                );
+
+                Vector2 ballXZ = new Vector2(
+                    ballPos.x,
+                    ballPos.z
+                );
+
+                // 野手がボールに到達するのにかかる時間（XZのみ）
                 float moveTime =
-                    Vector3.Distance(fielder.transform.position, ballPos)
+                    Vector2.Distance(fielderXZ, ballXZ)
                     / data.MoveSpeed
                     + data.ReactionTime;
 
@@ -81,4 +100,6 @@ public static class DefenseCalculator
 
         return bestPlan;
     }
+
+
 }
