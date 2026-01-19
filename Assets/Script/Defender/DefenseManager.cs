@@ -30,18 +30,45 @@ public class DefenseManager : MonoBehaviour
     private int _currentThrowIndex;
     private CancellationTokenSource _throwCts;
     private bool _isThrowing;
+    private bool _hasPendingResult;
 
     private void OnEnable()
     {
-        // Hit events
-        _battingResultEvent?.RegisterListener(OnBattingResult);
-        _battingBallTrajectoryEvent?.RegisterListener(OnBattingBallTrajectory);
+        if (_battingResultEvent != null)
+        {
+            _battingResultEvent?.RegisterListener(OnBattingResult);
+        }
+        else
+        {
+            Debug.LogError("BattingResultEvent reference is not set in DefenseManager.");
+        }
 
-        // Catch/Throw
-        _defenderCatchEvent?.RegisterListener(OnDefenderCatchEvent);
+        if (_battingBallTrajectoryEvent != null)
+        {
+            _battingBallTrajectoryEvent?.RegisterListener(OnBattingBallTrajectory);
+        }
+        else
+        {
+            Debug.LogError("BattingBallTrajectoryEvent reference is not set in DefenseManager.");
+        }
 
-        // Ball ref
-        _ballSpawnedEvent?.RegisterListener(SetBall);
+        if (_defenderCatchEvent != null)
+        {
+            _defenderCatchEvent?.RegisterListener(OnDefenderCatchEvent);
+        }
+        else
+        {
+            Debug.LogError("DefenderCatchEvent reference is not set in DefenseManager.");
+        } 
+
+        if (_ballSpawnedEvent != null)
+        {
+            _ballSpawnedEvent?.RegisterListener(SetBall);
+        }
+        else
+        {
+            Debug.LogError("BallSpawnedEvent reference is not set in DefenseManager.");
+        }
     }
 
     private void OnDisable()
@@ -66,18 +93,20 @@ public class DefenseManager : MonoBehaviour
     private void OnBattingResult(BattingBallResult result)
     {
         _pendingResult = result;
+        _hasPendingResult = true;
         TryStartDefenseFromHit();
     }
 
     private void TryStartDefenseFromHit()
     {
-        // 両方揃うまで待つ
-        if (_pendingTrajectory == null) return;
+        if (_pendingTrajectory == null || _pendingTrajectory.Count == 0) return;
+        if (!_hasPendingResult) return;
 
         // ここでまとめて処理して、バッファはクリア
         var traj = _pendingTrajectory;
         var res = _pendingResult;
         _pendingTrajectory = null;
+        _hasPendingResult = false;
 
         OnBallHit(traj, res);
     }
@@ -102,8 +131,7 @@ public class DefenseManager : MonoBehaviour
         Debug.Log($"CatchPoint: {catchPlan.CatchPoint}");
         Debug.Log($"CatchTime: {catchPlan.CatchTime}");
 
-        // 捕球地点へ移動（捕球判定自体はトリガで発火）
-        catchPlan.Catcher.MoveTo(catchPlan.CatchPoint, catchPlan.CatchTime);
+        catchPlan.Catcher.MoveToCatchPoint(catchPlan.CatchPoint, catchPlan.CatchTime);
     }
 
     private void SetBall(GameObject ball)
@@ -154,12 +182,14 @@ public class DefenseManager : MonoBehaviour
             {
                 ct.ThrowIfCancellationRequested();
 
-                var step = _currentThrowSteps[_currentThrowIndex];
+                ThrowStep step = _currentThrowSteps[_currentThrowIndex];
 
                 Debug.Assert(step.ThrowerFielder != null, $"Thrower null at step {_currentThrowIndex}");
                 Debug.Assert(step.ReceiverFielder != null, $"Receiver null at step {_currentThrowIndex}");
 
                 Debug.Log($"[ThrowStep {_currentThrowIndex}] Plan={step.Plan} Thrower={step.ThrowerFielder.name} Receiver={step.ReceiverFielder.name}");
+
+                step.ReceiverFielder.MoveToBase(step.TargetPosition, step.ArriveTime);
 
                 await step.ThrowerFielder.ExecuteThrowStepAsync(step, _ballThrow, ct);
 
