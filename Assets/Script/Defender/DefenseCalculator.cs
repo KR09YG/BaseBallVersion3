@@ -24,49 +24,41 @@ public static class DefenseCalculator
             CatchTime = float.MaxValue
         };
 
+
         for (int i = 0; i < trajectory.Count; i++)
         {
-            // ボールがその座標に来る時間
             float t = i * deltaTime;
             Vector3 ballPos = trajectory[i];
 
+            float bestMoveTime = float.MaxValue;
+            FielderController bestFielder = null;
+
             foreach (var fielder in fielders)
             {
-                FielderData data = fielder.Data;
+                var data = fielder.Data;
+                if (ballPos.y > data.CatchHeight) continue;
 
-                // 野手の高さより高い位置にボールがある場合はスルー
-                if (ballPos.y > data.CatchHeight)
+                Vector3 fPos = fielder.transform.position; fPos.y = 0f;
+                Vector3 bPos = ballPos; bPos.y = 0f;
+
+                float moveTime = Vector3.Distance(fPos, bPos) / data.MoveSpeed + data.ReactionTime;
+
+                if (moveTime <= t && moveTime < bestMoveTime)
                 {
-                    continue;
+                    bestMoveTime = moveTime;
+                    bestFielder = fielder;
                 }
+            }
 
-                Vector2 fielderXZ = new Vector2(
-                    fielder.transform.position.x,
-                    fielder.transform.position.z
-                );
-
-                Vector2 ballXZ = new Vector2(
-                    ballPos.x,
-                    ballPos.z
-                );
-
-                // 野手がボールに到達するのにかかる時間（XZのみ）
-                float moveTime =
-                    Vector2.Distance(fielderXZ, ballXZ)
-                    / data.MoveSpeed
-                    + data.ReactionTime;
-
-                // ボールがその座標に来るまでに野手が到達できるか
-                if (moveTime <= t && t < bestPlan.CatchTime)
-                {
-                    // キャッチ可能な最速プランを更新
-                    bestPlan.CanCatch = true;
-                    bestPlan.Catcher = fielder;
-                    bestPlan.CatchPoint = ballPos;
-                    bestPlan.CatchTime = t;
-                    bestPlan.CatchTrajectoryIndex = i;
-                    break;
-                }
+            // この時刻tで捕球可能な人がいるなら、ここが最速時刻なので確定してbreak
+            if (bestFielder != null)
+            {
+                bestPlan.CanCatch = true;
+                bestPlan.Catcher = bestFielder;
+                bestPlan.CatchPoint = ballPos;
+                bestPlan.CatchTime = t;
+                bestPlan.CatchTrajectoryIndex = i;
+                break;
             }
         }
 
@@ -80,9 +72,14 @@ public static class DefenseCalculator
             foreach (var fielder in fielders)
             {
                 FielderData data = fielder.Data;
+                Vector3 fielderPosXZ = fielder.transform.position;
+                fielderPosXZ.y = 0f;
+
+                Vector3 ballPosXZ = finalPos;
+                ballPosXZ.y = 0f;
 
                 float moveTime =
-                    Vector3.Distance(fielder.transform.position, finalPos)
+                    Vector3.Distance(fielderPosXZ, ballPosXZ)
                     / data.MoveSpeed
                     + data.ReactionTime;
 
