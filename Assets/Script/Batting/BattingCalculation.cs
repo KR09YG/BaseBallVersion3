@@ -6,6 +6,78 @@ using System.Collections.Generic;
 /// </summary>
 public class BattingCalculator : MonoBehaviour
 {
+    // 芯ズレ時の最小効率（外したらほぼ飛ばない）
+    private const float MIN_IMPACT_EFFICIENCY = 0.03f;
+
+    // 芯ズレ時の最大効率
+    private const float MAX_IMPACT_EFFICIENCY = 1.0f;
+
+    // 打球初速全体倍率（ゲーム性調整用）
+    private const float GLOBAL_EXIT_VELOCITY_SCALE = 0.85f;
+
+    // sweetSpot〜maxImpact を正規化する際の下限・上限
+    private const float MISS_MIN = 0.0f;
+    private const float MISS_MAX = 1.0f;
+
+    // --- Unit conversions ---
+    private const float KMH_TO_MS = 1f / 3.6f;
+
+    // --- Timing calculation ---
+    private const float TIMING_DISTANCE_WINDOW_M = 2f;     // DISTANCE_WINDOW
+    private const float TIMING_PULL_OPPO_THRESHOLD = 0.1f; // pull/oppo判定の閾値
+
+    // --- Launch angle calc ---
+    private const float VERTICAL_OFFSET_NORMALIZE_SCALE = 10f; // verticalOffset * 10f
+
+    // --- Pitch velocity sampling ---
+    private const float PITCH_TRAJECTORY_DT = 0.01f; // (p2 - p1) / 0.01f の dt
+
+    // --- Exit velocity calculation ---
+    private const float BALL_MASS_KG = 0.145f;                // ローカル const BALL_MASS
+    private const float EFFECTIVE_BAT_MASS_FACTOR = 0.7f;      // batMass * 0.7f
+
+    // --- Spin rate calculation ---
+    private const float SPIN_VELOCITY_BASE_MS = 40f;           // exitVelocity / 40f
+    private const float SPIN_ANGLE_BASE_DEG = 30f;             // launchAngle / 30f
+    private const float SPIN_ANGLE_SCALE = 0.3f;               // * 0.3f
+    private const float SPIN_MIN_RPM = 500f;
+    private const float SPIN_MAX_RPM = 4000f;
+
+    // --- Lift coefficient calculation ---
+    private const float LIFT_BASE = 0.2f;                      // 0.2f +
+    private const float LIFT_SPIN_DIV_RPM = 2500f;             // spinRate / 2500f
+    private const float LIFT_SPIN_SCALE = 0.35f;               // * 0.35f
+
+    // --- Hit type / direction labeling ---
+    private const float LABEL_TIMING_TOO_EARLY = -0.7f;
+    private const float LABEL_TIMING_EARLY = -0.3f;
+    private const float LABEL_TIMING_JUST = 0.3f;
+    private const float LABEL_TIMING_LATE = 0.7f;
+
+    private const float DIRECTION_EXTREME_FOUL_DEG = 60f;
+    private const float DIRECTION_FOUL_DEG = 45f;
+    private const float DIRECTION_CORNER_OUTFIELD_DEG = 30f;
+    private const float DIRECTION_GAP_DEG = 15f;
+    private const float DIRECTION_CENTER_TIGHT_DEG = 5f;
+
+    private const float BALLTYPE_GROUND_STRONG_DEG = 0f;
+    private const float BALLTYPE_GROUND_DEG = 10f;
+    private const float BALLTYPE_LOW_LINER_DEG = 15f;
+    private const float BALLTYPE_LINER_DEG = 25f;
+    private const float BALLTYPE_LINER_FLY_DEG = 35f;
+    private const float BALLTYPE_FLY_DEG = 45f;
+
+    // --- DetermineBattedBallType thresholds ---
+    private const float HOMERUN_DISTANCE_M = 120f;
+    private const float HIT_DISTANCE_M = 30f;
+
+    // --- Miss result defaults ---
+    private static readonly Vector3 MISS_LANDING_POS = Vector3.zero;
+
+    // --- Simulation config defaults for batted ball ---
+    private const float BATTED_SIM_DELTA_TIME = 0.01f;
+    private const float BATTED_SIM_MAX_TIME = 10f;
+   
     [Header("参照")]
     [SerializeField] private BattingCursor _cursor;
     [SerializeField] private StrikeZone _strikeZone;
@@ -153,7 +225,7 @@ public class BattingCalculator : MonoBehaviour
         // 打球速度を計算
         float exitVelocity = CalculateExitVelocity(
             pitchVelocity.magnitude,
-            _parameters.batSpeedKmh / 3.6f,
+            _parameters.batSpeedKmh * KMH_TO_MS,
             impactEfficiency
         );
 
@@ -224,7 +296,7 @@ public class BattingCalculator : MonoBehaviour
     {
         float verticalOffset = cursorPosition.y - ballPosition.y;
 
-        float normalizedOffset = verticalOffset * 10f;
+        float normalizedOffset = verticalOffset * VERTICAL_OFFSET_NORMALIZE_SCALE;
         float angleOffset = Mathf.Sign(normalizedOffset) *
                            Mathf.Pow(Mathf.Abs(normalizedOffset), _parameters.launchAnglePower) *
                            _parameters.launchAngleScale;
@@ -253,8 +325,7 @@ public class BattingCalculator : MonoBehaviour
 
         float distanceToZone = ballPosition.z - strikeZoneZ;
 
-        const float DISTANCE_WINDOW = 2f;
-        float normalizedTiming = Mathf.Clamp(distanceToZone / DISTANCE_WINDOW, -1f, 1f);
+        float normalizedTiming = Mathf.Clamp(distanceToZone / TIMING_DISTANCE_WINDOW_M, -1f, 1f);
 
         if (_enableDebugLogs)
         {
@@ -288,7 +359,7 @@ public class BattingCalculator : MonoBehaviour
 
             if (p1.z <= strikeZoneZ && p2.z >= strikeZoneZ)
             {
-                Vector3 velocity = (p2 - p1) / 0.01f;
+                Vector3 velocity = (p2 - p1) / PITCH_TRAJECTORY_DT;
                 return velocity;
             }
         }
@@ -296,12 +367,12 @@ public class BattingCalculator : MonoBehaviour
         if (trajectory.Count >= 2)
         {
             Vector3 avgVelocity = (trajectory[trajectory.Count - 1] - trajectory[0]) /
-                                 (trajectory.Count * 0.01f);
+                                 (trajectory.Count * PITCH_TRAJECTORY_DT);
             return avgVelocity;
         }
 
         Debug.LogWarning("[BattingCalculator] 投球速度の取得に失敗");
-        return Vector3.forward * 30f;
+        return Vector3.forward * 30f; // デフォルト（ここは必要なら別定数化してもOK）
     }
 
     /// <summary>
@@ -309,32 +380,51 @@ public class BattingCalculator : MonoBehaviour
     /// </summary>
     private float CalculateImpactEfficiency(float impactDistance)
     {
+        // 完全に芯
         if (impactDistance <= _parameters.sweetSpotRadius)
-        {
-            return 1.0f;
-        }
+            return MAX_IMPACT_EFFICIENCY;
 
+        // 当たり判定ギリギリ
         if (impactDistance >= _parameters.maxImpactDistance)
-        {
-            return 0.1f;
-        }
+            return MIN_IMPACT_EFFICIENCY;
 
-        float normalizedDistance = (impactDistance - _parameters.sweetSpotRadius) /
-                                  (_parameters.maxImpactDistance - _parameters.sweetSpotRadius);
-        return Mathf.Clamp01(1.0f - normalizedDistance * normalizedDistance);
+        // 芯ズレ量を 0〜1 に正規化
+        float miss = Mathf.InverseLerp(
+            _parameters.sweetSpotRadius,
+            _parameters.maxImpactDistance,
+            impactDistance
+        );
+        miss = Mathf.Clamp(miss, MISS_MIN, MISS_MAX);
+
+        // launchAnglePower を「芯ズレ減衰の厳しさ」として使用
+        float efficiency =
+            MAX_IMPACT_EFFICIENCY
+            - Mathf.Pow(miss, _parameters.launchAnglePower);
+
+        // 全体を飛びづらくするスケール
+        efficiency *= GLOBAL_EXIT_VELOCITY_SCALE;
+
+        // 最終クランプ
+        efficiency = Mathf.Clamp(
+            efficiency,
+            MIN_IMPACT_EFFICIENCY,
+            MAX_IMPACT_EFFICIENCY
+        );
+
+        return efficiency;
     }
+
 
     /// <summary>
     /// 打球速度を計算（反発係数と運動量保存則）
     /// </summary>
     private float CalculateExitVelocity(float pitchSpeed, float batSpeed, float efficiency)
     {
-        const float BALL_MASS = 0.145f;
-        float effectiveBatMass = _parameters.batMass * 0.7f;
+        float effectiveBatMass = _parameters.batMass * EFFECTIVE_BAT_MASS_FACTOR;
 
-        float numerator = (BALL_MASS - _parameters.coefficientOfRestitution * effectiveBatMass) * pitchSpeed
+        float numerator = (BALL_MASS_KG - _parameters.coefficientOfRestitution * effectiveBatMass) * pitchSpeed
                         + effectiveBatMass * (1f + _parameters.coefficientOfRestitution) * batSpeed;
-        float denominator = BALL_MASS + effectiveBatMass;
+        float denominator = BALL_MASS_KG + effectiveBatMass;
 
         float baseVelocity = numerator / denominator;
         float finalVelocity = baseVelocity * efficiency;
@@ -364,6 +454,7 @@ public class BattingCalculator : MonoBehaviour
     {
         Vector3 horizontalDirection = new Vector3(direction.x, 0, direction.z).normalized;
 
+        // バックスピンで揚力(+Y)が出る向き
         Vector3 spinAxis = Vector3.Cross(horizontalDirection, Vector3.up).normalized;
 
         if (spinAxis.sqrMagnitude < 0.01f)
@@ -374,16 +465,16 @@ public class BattingCalculator : MonoBehaviour
         return spinAxis;
     }
 
-
     /// <summary>
     /// スピン量を計算
     /// </summary>
     private float CalculateSpinRate(float exitVelocity, float launchAngle, float efficiency)
     {
-        float velocityFactor = exitVelocity / 40f;
-        float angleFactor = 1f + (launchAngle / 30f) * 0.3f;
+        float velocityFactor = exitVelocity / SPIN_VELOCITY_BASE_MS;
+        float angleFactor = 1f + (launchAngle / SPIN_ANGLE_BASE_DEG) * SPIN_ANGLE_SCALE;
         float spinRate = _parameters.baseBackspinRPM * velocityFactor * angleFactor * efficiency;
-        return Mathf.Clamp(spinRate, 500f, 4000f);
+
+        return Mathf.Clamp(spinRate, SPIN_MIN_RPM, SPIN_MAX_RPM);
     }
 
     /// <summary>
@@ -391,7 +482,7 @@ public class BattingCalculator : MonoBehaviour
     /// </summary>
     private float CalculateLiftCoefficient(float spinRate)
     {
-        return 0.2f + (spinRate / 2500f) * 0.35f;
+        return LIFT_BASE + (spinRate / LIFT_SPIN_DIV_RPM) * LIFT_SPIN_SCALE;
     }
 
     /// <summary>
@@ -412,10 +503,9 @@ public class BattingCalculator : MonoBehaviour
             BallType = BattingBallType.Miss,
             IsHit = false,
             Distance = 0f,
-            LandingPosition = Vector3.zero  // ✅ 追加
+            LandingPosition = MISS_LANDING_POS
         };
 
-        // イベント発火の順序
         // 1. 軌道イベントを先に発火（空）
         if (_trajectoryEvent != null)
         {
@@ -441,8 +531,8 @@ public class BattingCalculator : MonoBehaviour
         Debug.Log($"  - 打球角度: 仰角{result.LaunchAngle:F1}度, 水平{result.HorizontalAngle:F1}度");
         Debug.Log($"  - タイミング: {result.Timing:F3} ({GetTimingLabel(result.Timing)})");
 
-        string pullOrOppo = result.Timing < -0.1f ? "引っ張り" :
-                           result.Timing > 0.1f ? "流し打ち" : "センター";
+        string pullOrOppo = result.Timing < -TIMING_PULL_OPPO_THRESHOLD ? "引っ張り" :
+                           result.Timing > TIMING_PULL_OPPO_THRESHOLD ? "流し打ち" : "センター";
         Debug.Log($"  - 打撃タイプ: {pullOrOppo}");
 
         Debug.Log($"  - 打球方向: {GetDirectionLabel(result.HorizontalAngle)}");
@@ -457,36 +547,36 @@ public class BattingCalculator : MonoBehaviour
 
     private string GetTimingLabel(float timing)
     {
-        if (timing < -0.7f) return "早すぎ（ファール）";
-        if (timing < -0.3f) return "早め（引っ張り）";
-        if (timing < 0.3f) return "ジャスト";
-        if (timing < 0.7f) return "遅め（流し打ち）";
+        if (timing < LABEL_TIMING_TOO_EARLY) return "早すぎ（ファール）";
+        if (timing < LABEL_TIMING_EARLY) return "早め（引っ張り）";
+        if (timing < LABEL_TIMING_JUST) return "ジャスト";
+        if (timing < LABEL_TIMING_LATE) return "遅め（流し打ち）";
         return "遅すぎ（ファール）";
     }
 
     private string GetDirectionLabel(float horizontalAngle)
     {
-        if (horizontalAngle < -60f) return "左ファール（極端）";
-        if (horizontalAngle < -45f) return "左ファール";
-        if (horizontalAngle < -30f) return "レフト";
-        if (horizontalAngle < -15f) return "レフト～レフトセンター";
-        if (horizontalAngle < -5f) return "レフトセンター";
-        if (horizontalAngle < 5f) return "センター";
-        if (horizontalAngle < 15f) return "ライトセンター";
-        if (horizontalAngle < 30f) return "ライトセンター～ライト";
-        if (horizontalAngle < 45f) return "ライト";
-        if (horizontalAngle < 60f) return "右ファール";
+        if (horizontalAngle < -DIRECTION_EXTREME_FOUL_DEG) return "左ファール（極端）";
+        if (horizontalAngle < -DIRECTION_FOUL_DEG) return "左ファール";
+        if (horizontalAngle < -DIRECTION_CORNER_OUTFIELD_DEG) return "レフト";
+        if (horizontalAngle < -DIRECTION_GAP_DEG) return "レフト～レフトセンター";
+        if (horizontalAngle < -DIRECTION_CENTER_TIGHT_DEG) return "レフトセンター";
+        if (horizontalAngle < DIRECTION_CENTER_TIGHT_DEG) return "センター";
+        if (horizontalAngle < DIRECTION_GAP_DEG) return "ライトセンター";
+        if (horizontalAngle < DIRECTION_CORNER_OUTFIELD_DEG) return "ライトセンター～ライト";
+        if (horizontalAngle < DIRECTION_FOUL_DEG) return "ライト";
+        if (horizontalAngle < DIRECTION_EXTREME_FOUL_DEG) return "右ファール";
         return "右ファール（極端）";
     }
 
     private string GetBattedBallType(float launchAngle)
     {
-        if (launchAngle < 0f) return "強烈なゴロ";
-        if (launchAngle < 10f) return "ゴロ";
-        if (launchAngle < 15f) return "低いライナー";
-        if (launchAngle < 25f) return "ライナー";
-        if (launchAngle < 35f) return "高めのライナー/フライ";
-        if (launchAngle < 45f) return "フライ";
+        if (launchAngle < BALLTYPE_GROUND_STRONG_DEG) return "強烈なゴロ";
+        if (launchAngle < BALLTYPE_GROUND_DEG) return "ゴロ";
+        if (launchAngle < BALLTYPE_LOW_LINER_DEG) return "低いライナー";
+        if (launchAngle < BALLTYPE_LINER_DEG) return "ライナー";
+        if (launchAngle < BALLTYPE_LINER_FLY_DEG) return "高めのライナー/フライ";
+        if (launchAngle < BALLTYPE_FLY_DEG) return "フライ";
         return "ポップフライ";
     }
 
@@ -519,19 +609,19 @@ public class BattingCalculator : MonoBehaviour
         );
 
         // ホームラン判定（120m以上）
-        if (distance >= 120f)
+        if (distance >= HOMERUN_DISTANCE_M)
         {
             return BattingBallType.HomeRun;
         }
 
         // ゴロ判定（打球角度10度未満）
-        if (launchAngle < 10f)
+        if (launchAngle < BALLTYPE_GROUND_DEG)
         {
             return BattingBallType.GroundBall;
         }
 
         // ヒット判定（フェアゾーンで一定距離以上）
-        if (distance >= 30f)
+        if (distance >= HIT_DISTANCE_M)
         {
             return BattingBallType.Hit;
         }
@@ -567,8 +657,8 @@ public class BattingCalculator : MonoBehaviour
 
         var config = new BallPhysicsCalculator.SimulationConfig
         {
-            DeltaTime = 0.01f,
-            MaxSimulationTime = 10f,
+            DeltaTime = BATTED_SIM_DELTA_TIME,
+            MaxSimulationTime = BATTED_SIM_MAX_TIME,
             StopAtZ = null,
             BounceSettings = _bounceSettings
         };
@@ -582,14 +672,10 @@ public class BattingCalculator : MonoBehaviour
             config
         );
 
-        // ✅ 落下地点を取得
-        Vector3 landingPosition = Vector3.zero;
-        if (trajectory.Count > 0)
-        {
-            landingPosition = trajectory[trajectory.Count - 1];
-        }
+        // 落下地点
+        Vector3 landingPosition = trajectory.Count > 0 ? trajectory[trajectory.Count - 1] : Vector3.zero;
 
-        // 打球タイプを判定
+        // 打球タイプ
         BattingBallType ballType = DetermineBattedBallType(
             trajectory,
             result.LaunchAngle,
@@ -597,7 +683,7 @@ public class BattingCalculator : MonoBehaviour
             ballPosition
         );
 
-        // 飛距離を計算
+        // 飛距離
         float distance = 0f;
         if (trajectory.Count > 0)
         {
@@ -607,11 +693,11 @@ public class BattingCalculator : MonoBehaviour
             );
         }
 
-        // 結果を更新
+        // 結果更新
         result.BallType = ballType;
         result.Distance = distance;
         result.IsHit = (ballType == BattingBallType.Hit || ballType == BattingBallType.HomeRun);
-        result.LandingPosition = landingPosition;  // ✅ 追加
+        result.LandingPosition = landingPosition;
 
         if (_enableDebugLogs)
         {
