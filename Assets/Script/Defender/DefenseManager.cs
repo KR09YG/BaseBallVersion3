@@ -8,6 +8,7 @@ public class DefenseManager : MonoBehaviour
 {
     [Header("Fielders")]
     [SerializeField] private List<FielderController> _fielders;
+    private Dictionary<PositionType, FielderController> _byPosition;
 
     [Header("Hit Events")]
     [SerializeField] private BattingResultEvent _battingResultEvent;
@@ -18,7 +19,10 @@ public class DefenseManager : MonoBehaviour
 
     [Header("World refs")]
     [SerializeField] private BaseManager _baseManager;
+    [SerializeField] private RunnerManager _runnerManager;
     [SerializeField] private BallSpawnedEvent _ballSpawnedEvent;
+
+    [SerializeField] private DefenseSituation _situation;
 
     private const float DELTA_TIME = 0.01f;
 
@@ -32,7 +36,7 @@ public class DefenseManager : MonoBehaviour
     private bool _isThrowing;
     private bool _hasPendingResult;
 
-    private void OnEnable()
+    private void Awake()
     {
         if (_battingResultEvent != null)
         {
@@ -59,7 +63,7 @@ public class DefenseManager : MonoBehaviour
         else
         {
             Debug.LogError("DefenderCatchEvent reference is not set in DefenseManager.");
-        } 
+        }
 
         if (_ballSpawnedEvent != null)
         {
@@ -68,6 +72,23 @@ public class DefenseManager : MonoBehaviour
         else
         {
             Debug.LogError("BallSpawnedEvent reference is not set in DefenseManager.");
+        }
+
+        if (_byPosition == null)
+        {
+            _byPosition = new Dictionary<PositionType, FielderController>();
+        }
+
+        foreach (var f in _fielders)
+        {
+            if (!_byPosition.ContainsKey(f.Data.Position))
+            {
+                _byPosition.Add(f.Data.Position, f);
+            }
+            else
+            {
+                Debug.LogWarning($"{f.Data.Position}Ç™èdï°ÇµÇƒÇ¢Ç‹Ç∑");
+            }
         }
     }
 
@@ -153,8 +174,14 @@ public class DefenseManager : MonoBehaviour
 
         Debug.Assert(_ballThrow != null, "Ball reference (_ballThrow) is null. Did BallSpawnedEvent fire?");
 
+        if (_runnerManager == null)
+        {
+            Debug.LogError("RunnerManager reference is null in DefenseManager.");
+            return;
+        }
+
         var steps = DefenseThrowDecisionCalculator.ThrowDicision(
-            catchDefender, isFly, _fielders, _baseManager);
+            catchDefender, isFly, _byPosition, _baseManager, _situation, _runnerManager);
 
         if (steps == null || steps.Count == 0)
         {
