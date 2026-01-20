@@ -1,6 +1,6 @@
 using UnityEngine;
 
-public enum BaseId { First, Second, Third, Home }
+public enum BaseId { None, First, Second, Third, Home }
 
 public class BaseManager : MonoBehaviour
 {
