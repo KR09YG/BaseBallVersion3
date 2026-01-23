@@ -33,8 +33,19 @@ public class BattingCalculator : MonoBehaviour
     private const float PITCH_TRAJECTORY_DT = 0.01f; // (p2 - p1) / 0.01f の dt
 
     // --- Exit velocity calculation ---
-    private const float BALL_MASS_KG = 0.145f;                // ローカル const BALL_MASS
-    private const float EFFECTIVE_BAT_MASS_FACTOR = 0.7f;      // batMass * 0.7f
+    private const float BALL_MASS_KG = 0.145f;                 // ローカル const BALL_MASS
+    private const float EFFECTIVE_BAT_MASS_FACTOR = 0.7f;       // batMass * 0.7f
+
+    // ======== 追加：ExitVelocity 調整（飛びすぎ防止） ========
+    private const float COR_MIN = 0.15f;
+    private const float COR_MAX = 0.60f;
+
+    // 現実寄りの上限目安：60〜80m/s（ゲームなので好みで）
+    private const float EXIT_VELOCITY_MIN_MS = 0f;
+    private const float EXIT_VELOCITY_MAX_MS = 80f;
+
+    // このプロジェクトの打球前方向は -Z（CalculateBattedBallDirection が z=-cos...）
+    private static readonly Vector3 BAT_FORWARD_WORLD = Vector3.back;
 
     // --- Spin rate calculation ---
     private const float SPIN_VELOCITY_BASE_MS = 40f;           // exitVelocity / 40f
@@ -43,10 +54,16 @@ public class BattingCalculator : MonoBehaviour
     private const float SPIN_MIN_RPM = 500f;
     private const float SPIN_MAX_RPM = 4000f;
 
-    // --- Lift coefficient calculation ---
-    private const float LIFT_BASE = 0.2f;                      // 0.2f +
-    private const float LIFT_SPIN_DIV_RPM = 2500f;             // spinRate / 2500f
-    private const float LIFT_SPIN_SCALE = 0.35f;               // * 0.35f
+    // ======== 変更：Lift coefficient（スピン比ベース + clamp） ========
+    private const float BALL_RADIUS_M = 0.0366f;
+    private const float RPM_TO_RAD_PER_SEC = 2f * Mathf.PI / 60f;
+    private const float MIN_SPEED_FOR_SPIN_RATIO = 5f; // 低速で暴れないように
+
+    // Cl = a*S/(b+S) のパラメータ（ゲーム用ツマミ）
+    private const float CL_A = 1.2f;
+    private const float CL_B = 0.2f;
+    private const float CL_MIN = 0.0f;
+    private const float CL_MAX = 0.35f; // ここを下げると飛ばなくなる
 
     // --- Hit type / direction labeling ---
     private const float LABEL_TIMING_TOO_EARLY = -0.7f;
@@ -77,7 +94,7 @@ public class BattingCalculator : MonoBehaviour
     // --- Simulation config defaults for batted ball ---
     private const float BATTED_SIM_DELTA_TIME = 0.01f;
     private const float BATTED_SIM_MAX_TIME = 10f;
-   
+
     [Header("参照")]
     [SerializeField] private BattingCursor _cursor;
     [SerializeField] private StrikeZone _strikeZone;
@@ -207,6 +224,17 @@ public class BattingCalculator : MonoBehaviour
     }
 
     /// <summary>
+    /// 投球速度を「バット前方向（打球前方向）」へ射影し、
+    /// "バットへ向かってくる成分" を正の速度として返す（m/s, >=0）
+    /// </summary>
+    private static float GetIncomingPitchSpeedIntoBat(Vector3 pitchVelocity)
+    {
+        // pitchが BAT_FORWARD と逆向きに飛んでくるとき dot は負になる想定
+        // → それを正の「食い込む速度」に変換
+        return Mathf.Max(0f, -Vector3.Dot(pitchVelocity, BAT_FORWARD_WORLD));
+    }
+
+    /// <summary>
     /// 打球パラメータを計算（内部用）
     /// </summary>
     private BattingBallResult CalculateBattedBallParameters(
@@ -222,9 +250,11 @@ public class BattingCalculator : MonoBehaviour
         float impactEfficiency = CalculateImpactEfficiency(impactDistance);
         bool isSweetSpot = impactDistance <= _parameters.sweetSpotRadius;
 
-        // 打球速度を計算
+        // 打球速度を計算（投球速度は「食い込む成分」を使う：符号・向き込み）
+        float incomingPitchSpeed = GetIncomingPitchSpeedIntoBat(pitchVelocity);
+
         float exitVelocity = CalculateExitVelocity(
-            pitchVelocity.magnitude,
+            incomingPitchSpeed,
             _parameters.batSpeedKmh * KMH_TO_MS,
             impactEfficiency
         );
@@ -253,6 +283,7 @@ public class BattingCalculator : MonoBehaviour
         {
             Debug.Log($"[位置関係] カーソルY: {swingPosition.y:F3}, ボールY: {ballPosition.y:F3}, 差: {(swingPosition.y - ballPosition.y) * 100f:F1}cm");
             Debug.Log($"[打球詳細] timing: {timing:F2}, 水平: {horizontalAngle:F1}度, 仰角: {launchAngle:F1}度, ファール: {isFoul}");
+            Debug.Log($"[投球速度] raw={pitchVelocity}, incoming={incomingPitchSpeed:F2} m/s");
         }
 
         return new BattingBallResult
@@ -366,8 +397,9 @@ public class BattingCalculator : MonoBehaviour
 
         if (trajectory.Count >= 2)
         {
-            Vector3 avgVelocity = (trajectory[trajectory.Count - 1] - trajectory[0]) /
-                                 (trajectory.Count * PITCH_TRAJECTORY_DT);
+            // ✅ 修正：区間数は (Count - 1)
+            float totalTime = (trajectory.Count - 1) * PITCH_TRAJECTORY_DT;
+            Vector3 avgVelocity = (trajectory[trajectory.Count - 1] - trajectory[0]) / totalTime;
             return avgVelocity;
         }
 
@@ -414,22 +446,30 @@ public class BattingCalculator : MonoBehaviour
         return efficiency;
     }
 
-
     /// <summary>
     /// 打球速度を計算（反発係数と運動量保存則）
+    /// pitchSpeed は「バットへ向かってくる成分」のスカラー（m/s, >=0）
     /// </summary>
     private float CalculateExitVelocity(float pitchSpeed, float batSpeed, float efficiency)
     {
         float effectiveBatMass = _parameters.batMass * EFFECTIVE_BAT_MASS_FACTOR;
 
-        float numerator = (BALL_MASS_KG - _parameters.coefficientOfRestitution * effectiveBatMass) * pitchSpeed
-                        + effectiveBatMass * (1f + _parameters.coefficientOfRestitution) * batSpeed;
+        // ✅ 反発係数を clamp（調整が安定する）
+        float e = Mathf.Clamp(_parameters.coefficientOfRestitution, COR_MIN, COR_MAX);
+
+        float numerator =
+            (BALL_MASS_KG - e * effectiveBatMass) * pitchSpeed +
+            effectiveBatMass * (1f + e) * batSpeed;
+
         float denominator = BALL_MASS_KG + effectiveBatMass;
 
         float baseVelocity = numerator / denominator;
         float finalVelocity = baseVelocity * efficiency;
 
-        return Mathf.Max(0f, finalVelocity);
+        // ✅ 最後に上限 clamp（飛びすぎ防止のブレーキ）
+        finalVelocity = Mathf.Clamp(finalVelocity, EXIT_VELOCITY_MIN_MS, EXIT_VELOCITY_MAX_MS);
+
+        return finalVelocity;
     }
 
     /// <summary>
@@ -478,11 +518,21 @@ public class BattingCalculator : MonoBehaviour
     }
 
     /// <summary>
-    /// バックスピンによる揚力係数
+    /// バックスピンによる揚力係数（スピン比ベース）
+    /// S = (ω * r) / v
+    /// Cl = a*S/(b+S) を clamp
     /// </summary>
-    private float CalculateLiftCoefficient(float spinRate)
+    private float CalculateLiftCoefficient(float spinRateRpm, float speedMs)
     {
-        return LIFT_BASE + (spinRate / LIFT_SPIN_DIV_RPM) * LIFT_SPIN_SCALE;
+        float v = Mathf.Max(MIN_SPEED_FOR_SPIN_RATIO, speedMs);
+
+        float omega = spinRateRpm * RPM_TO_RAD_PER_SEC; // rad/s
+        float spinRatio = (omega * BALL_RADIUS_M) / v;  // 無次元 S
+
+        float cl = (CL_A * spinRatio) / (CL_B + spinRatio);
+        cl = Mathf.Clamp(cl, CL_MIN, CL_MAX);
+
+        return cl;
     }
 
     /// <summary>
@@ -653,7 +703,7 @@ public class BattingCalculator : MonoBehaviour
         }
 
         // BallPhysicsCalculatorで軌道計算
-        float liftCoefficient = CalculateLiftCoefficient(result.SpinRate);
+        float liftCoefficient = CalculateLiftCoefficient(result.SpinRate, result.ExitVelocity);
 
         var config = new BallPhysicsCalculator.SimulationConfig
         {
