@@ -1,9 +1,23 @@
-using Cysharp.Threading.Tasks;
+﻿using Cysharp.Threading.Tasks;
 using System;
 using System.Collections.Generic;
 using System.Threading;
 using UnityEngine;
 
+/// <summary>
+/// DefenseManager（守備）
+/// - 捕球前：CatchPlan確定後にベースカバーを先に走らせる
+/// - 捕球後：ThrowDecision → ThrowSteps 実行
+/// - ✅ OUT/SAFE判定（MVP）:
+///     「走者が塁に到達する残り秒」と「ボールがその塁に到達する秒」を比較して判定
+///     BallArriveTime <= RunnerArriveTime → OUT
+///     それ以外 → SAFE
+///
+/// 注意（MVP割り切り）:
+/// - 判定対象は「ベースへ投げた ThrowPlan（First/Second/Third/Home）」のみ
+/// - Cutoff/Return は判定しない
+/// - ThrowDelay などを厳密に入れたい場合は BallArriveTime に加算する（TODOコメントあり）
+/// </summary>
 public class DefenseManager : MonoBehaviour
 {
     [Header("Fielders")]
@@ -37,59 +51,47 @@ public class DefenseManager : MonoBehaviour
     private bool _isThrowing;
     private bool _hasPendingResult;
 
+    // ===== OUT/SAFE 判定用 =====
+    public struct DefensePlayOutcome
+    {
+        public bool HasJudgement;        // 判定ができたか（ベース送球が無い等でfalseになり得る）
+        public bool IsOut;               // OUTならtrue
+        public ThrowPlan Plan;           // First/Second/Third/Home
+        public BaseId TargetBase;        // 判定した塁
+        public float BallArriveTime;     // その塁にボールが着く予測秒（相対）
+        public float RunnerArriveTime;   // その塁に走者が着く残り秒（相対）
+        public string RunnerName;        // 最短走者名（デバッグ用）
+    }
+
+    public event Action<DefensePlayOutcome> OnDefensePlayFinished;
+
+    // RunnerETA を取るバッファ（RunnerManager.GetAllRunningETAs を使う前提）
+    private readonly List<RunnerETA> _etaBuffer = new(8);
+
     private void Awake()
     {
-        if (_battingResultEvent != null)
-        {
-            _battingResultEvent?.RegisterListener(OnBattingResult);
-        }
-        else
-        {
-            Debug.LogError("BattingResultEvent reference is not set in DefenseManager.");
-        }
+        if (_battingResultEvent != null) _battingResultEvent.RegisterListener(OnBattingResult);
+        else Debug.LogError("BattingResultEvent reference is not set in DefenseManager.");
 
-        if (_battingBallTrajectoryEvent != null)
-        {
-            _battingBallTrajectoryEvent?.RegisterListener(OnBattingBallTrajectory);
-        }
-        else
-        {
-            Debug.LogError("BattingBallTrajectoryEvent reference is not set in DefenseManager.");
-        }
+        if (_battingBallTrajectoryEvent != null) _battingBallTrajectoryEvent.RegisterListener(OnBattingBallTrajectory);
+        else Debug.LogError("BattingBallTrajectoryEvent reference is not set in DefenseManager.");
 
-        if (_defenderCatchEvent != null)
-        {
-            _defenderCatchEvent?.RegisterListener(OnDefenderCatchEvent);
-        }
-        else
-        {
-            Debug.LogError("DefenderCatchEvent reference is not set in DefenseManager.");
-        }
+        if (_defenderCatchEvent != null) _defenderCatchEvent.RegisterListener(OnDefenderCatchEvent);
+        else Debug.LogError("DefenderCatchEvent reference is not set in DefenseManager.");
 
-        if (_ballSpawnedEvent != null)
-        {
-            _ballSpawnedEvent?.RegisterListener(SetBall);
-        }
-        else
-        {
-            Debug.LogError("BallSpawnedEvent reference is not set in DefenseManager.");
-        }
+        if (_ballSpawnedEvent != null) _ballSpawnedEvent.RegisterListener(SetBall);
+        else Debug.LogError("BallSpawnedEvent reference is not set in DefenseManager.");
 
-        if (_byPosition == null)
-        {
-            _byPosition = new Dictionary<PositionType, FielderController>();
-        }
+        _byPosition ??= new Dictionary<PositionType, FielderController>();
 
         foreach (var f in _fielders)
         {
+            if (f == null) continue;
+
             if (!_byPosition.ContainsKey(f.Data.Position))
-            {
                 _byPosition.Add(f.Data.Position, f);
-            }
             else
-            {
-                Debug.LogWarning($"{f.Data.Position}���d�����Ă��܂�");
-            }
+                Debug.LogWarning($"{f.Data.Position}が重複しています");
         }
     }
 
@@ -97,9 +99,7 @@ public class DefenseManager : MonoBehaviour
     {
         _battingResultEvent?.UnregisterListener(OnBattingResult);
         _battingBallTrajectoryEvent?.UnregisterListener(OnBattingBallTrajectory);
-
         _defenderCatchEvent?.UnregisterListener(OnDefenderCatchEvent);
-
         _ballSpawnedEvent?.UnregisterListener(SetBall);
 
         _throwCts?.Cancel();
@@ -124,9 +124,9 @@ public class DefenseManager : MonoBehaviour
         if (_pendingTrajectory == null || _pendingTrajectory.Count == 0) return;
         if (!_hasPendingResult) return;
 
-        // �����ł܂Ƃ߂ď������āA�o�b�t�@�̓N���A
         var traj = _pendingTrajectory;
         var res = _pendingResult;
+
         _pendingTrajectory = null;
         _hasPendingResult = false;
 
@@ -148,15 +148,18 @@ public class DefenseManager : MonoBehaviour
                 DELTA_TIME,
                 _fielders);
 
+        // 捕球前にベースカバーを走らせる（投げる頃には受け手がいる状態を作る）
         _currentBaseCovers = BaseCoverCalculator.BaseCoverCalculation(
-                _fielders,
-                _situation,
-                catchPlan,
-                _baseManager,
-                result);
+            _fielders,
+            _situation,
+            catchPlan,
+            _baseManager,
+            result);
 
+        // 捕球者は捕球点へ
         catchPlan.Catcher.MoveToCatchPoint(catchPlan.CatchPoint, catchPlan.CatchTime);
 
+        // ベースカバー移動
         foreach (var cover in _currentBaseCovers)
         {
             cover.Fielder.MoveToBase(
@@ -179,7 +182,6 @@ public class DefenseManager : MonoBehaviour
 
     public void OnDefenderCatchEvent(FielderController catchDefender, bool isFly)
     {
-        // �������͐V�K�J�n���Ȃ��i�b��K�[�h�j
         if (_isThrowing) return;
 
         Debug.Assert(_ballThrow != null, "Ball reference (_ballThrow) is null. Did BallSpawnedEvent fire?");
@@ -196,6 +198,8 @@ public class DefenseManager : MonoBehaviour
         if (steps == null || steps.Count == 0)
         {
             Debug.LogWarning("Throw steps empty.");
+            // 捕球だけで終わる（フライアウト等）はここで通知してもOKだが、いったん未判定として返す
+            OnDefensePlayFinished?.Invoke(new DefensePlayOutcome { HasJudgement = false });
             return;
         }
 
@@ -213,6 +217,9 @@ public class DefenseManager : MonoBehaviour
     {
         _isThrowing = true;
 
+        // この守備プレイの判定結果（複数送球でも「最初にベースへ投げた判定」を採用）
+        DefensePlayOutcome outcome = new DefensePlayOutcome { HasJudgement = false };
+
         try
         {
             while (_currentThrowSteps != null && _currentThrowIndex < _currentThrowSteps.Count)
@@ -226,6 +233,18 @@ public class DefenseManager : MonoBehaviour
 
                 Debug.Log($"[ThrowStep {_currentThrowIndex}] Plan={step.Plan} Thrower={step.ThrowerFielder.name} Receiver={step.ReceiverFielder.name}");
 
+                // ✅ 送球前に判定材料を取る（相対時間比較）
+                // - RunnerArriveTime は “今から何秒で塁に着くか”
+                // - BallArriveTime は “今投げ始めてから何秒で塁に着くか”（ArriveTimeのみ。ThrowDelay等は必要なら加算）
+                if (!outcome.HasJudgement && TryEvaluateOutSafe(step, out outcome))
+                {
+                    Debug.Log($"[Judgement] Base={outcome.TargetBase} Plan={outcome.Plan} " +
+                              $"Ball={outcome.BallArriveTime:F2}s Runner={outcome.RunnerArriveTime:F2}s => {(outcome.IsOut ? "OUT" : "SAFE")} " +
+                              $"Runner={outcome.RunnerName}");
+                    // 判定自体は「投げる前」に確定させてよい（MVP）。
+                    // 実際の見た目は投げ切る。
+                }
+
                 await step.ThrowerFielder.ExecuteThrowStepAsync(step, _ballThrow, ct);
 
                 _currentThrowIndex++;
@@ -237,6 +256,78 @@ public class DefenseManager : MonoBehaviour
         finally
         {
             _isThrowing = false;
+
+            // 最終的な結果を通知
+            OnDefensePlayFinished?.Invoke(outcome);
+        }
+    }
+
+    /// <summary>
+    /// OUT/SAFE 判定（MVP）
+    /// 「ベースへ投げた場合のみ」判定する。Cutoff/Returnは無視。
+    /// </summary>
+    private bool TryEvaluateOutSafe(ThrowStep step, out DefensePlayOutcome outcome)
+    {
+        outcome = new DefensePlayOutcome { HasJudgement = false };
+
+        if (!TryPlanToBase(step.Plan, out var baseId))
+            return false;
+
+        // RunnerETA を取得
+        _etaBuffer.Clear();
+        _runnerManager.GetAllRunningETAs(_etaBuffer, true);
+
+        // そのベースに向かっている最短走者を探す（RunnerETAは「TargetBase」がある前提）
+        float best = float.MaxValue;
+        Runner bestRunner = null;
+
+        for (int i = 0; i < _etaBuffer.Count; i++)
+        {
+            var eta = _etaBuffer[i];
+            if (eta.TargetBase != baseId) continue;
+
+            if (eta.Remaining < best)
+            {
+                best = eta.Remaining;
+                bestRunner = eta.Runner;
+            }
+        }
+
+        // その塁へ向かう走者がいないなら判定不能（投げ先が「アウト取り」じゃない可能性）
+        if (bestRunner == null)
+            return false;
+
+        // ボール到達時間（MVP）
+        // TODO: ThrowDelay や 捕球猶予などを加算したければここに足す
+        float ballArrive = step.ArriveTime;
+
+        bool isOut = ballArrive <= best;
+
+        outcome = new DefensePlayOutcome
+        {
+            HasJudgement = true,
+            IsOut = isOut,
+            Plan = step.Plan,
+            TargetBase = baseId,
+            BallArriveTime = ballArrive,
+            RunnerArriveTime = best,
+            RunnerName = bestRunner != null ? bestRunner.name : "(null)"
+        };
+
+        return true;
+    }
+
+    private static bool TryPlanToBase(ThrowPlan plan, out BaseId baseId)
+    {
+        switch (plan)
+        {
+            case ThrowPlan.First: baseId = BaseId.First; return true;
+            case ThrowPlan.Second: baseId = BaseId.Second; return true;
+            case ThrowPlan.Third: baseId = BaseId.Third; return true;
+            case ThrowPlan.Home: baseId = BaseId.Home; return true;
+            default:
+                baseId = BaseId.First;
+                return false;
         }
     }
 }
