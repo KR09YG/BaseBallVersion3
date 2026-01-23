@@ -31,6 +31,7 @@ public class DefenseManager : MonoBehaviour
 
     private FielderThrowBallMove _ballThrow;
     private List<ThrowStep> _currentThrowSteps;
+    private List<BaseCoverAssign> _currentBaseCovers;
     private int _currentThrowIndex;
     private CancellationTokenSource _throwCts;
     private bool _isThrowing;
@@ -147,12 +148,21 @@ public class DefenseManager : MonoBehaviour
                 DELTA_TIME,
                 _fielders);
 
-        Debug.Log($"CanCatch: {catchPlan.CanCatch}");
-        Debug.Log($"Catcher: {catchPlan.Catcher.Data.Position}");
-        Debug.Log($"CatchPoint: {catchPlan.CatchPoint}");
-        Debug.Log($"CatchTime: {catchPlan.CatchTime}");
+        _currentBaseCovers = BaseCoverCalculator.BaseCoverCalculation(
+                _fielders,
+                _situation,
+                catchPlan,
+                _baseManager,
+                result);
 
         catchPlan.Catcher.MoveToCatchPoint(catchPlan.CatchPoint, catchPlan.CatchTime);
+
+        foreach (var cover in _currentBaseCovers)
+        {
+            cover.Fielder.MoveToBase(
+                _baseManager.GetBasePosition(cover.BaseId),
+                cover.ArriveTime);
+        }
     }
 
     private void SetBall(GameObject ball)
@@ -215,8 +225,6 @@ public class DefenseManager : MonoBehaviour
                 Debug.Assert(step.ReceiverFielder != null, $"Receiver null at step {_currentThrowIndex}");
 
                 Debug.Log($"[ThrowStep {_currentThrowIndex}] Plan={step.Plan} Thrower={step.ThrowerFielder.name} Receiver={step.ReceiverFielder.name}");
-
-                step.ReceiverFielder.MoveToBase(step.TargetPosition, step.ArriveTime);
 
                 await step.ThrowerFielder.ExecuteThrowStepAsync(step, _ballThrow, ct);
 
