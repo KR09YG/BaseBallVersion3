@@ -1,0 +1,178 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 40b7d14be4980764cbad55fc3c3f884f, type: 3}
+  m_Name: Inning Schedule 9
+  m_EditorClassIdentifier: 
+  _top:
+  - PlayThisHalf: 0
+    StartDefenseSituation:
+      OutCount: 0
+      OnFirstBase: 0
+      OnSecondBase: 0
+      OnThirdBase: 0
+    SkipRule:
+      UseDynamicScore: 0
+      BaseRuns: 0
+  - PlayThisHalf: 0
+    StartDefenseSituation:
+      OutCount: 0
+      OnFirstBase: 0
+      OnSecondBase: 0
+      OnThirdBase: 0
+    SkipRule:
+      UseDynamicScore: 0
+      BaseRuns: 2
+  - PlayThisHalf: 0
+    StartDefenseSituation:
+      OutCount: 0
+      OnFirstBase: 0
+      OnSecondBase: 0
+      OnThirdBase: 0
+    SkipRule:
+      UseDynamicScore: 0
+      BaseRuns: 1
+  - PlayThisHalf: 0
+    StartDefenseSituation:
+      OutCount: 0
+      OnFirstBase: 0
+      OnSecondBase: 0
+      OnThirdBase: 0
+    SkipRule:
+      UseDynamicScore: 0
+      BaseRuns: 0
+  - PlayThisHalf: 0
+    StartDefenseSituation:
+      OutCount: 0
+      OnFirstBase: 0
+      OnSecondBase: 0
+      OnThirdBase: 0
+    SkipRule:
+      UseDynamicScore: 0
+      BaseRuns: 0
+  - PlayThisHalf: 0
+    StartDefenseSituation:
+      OutCount: 0
+      OnFirstBase: 0
+      OnSecondBase: 0
+      OnThirdBase: 0
+    SkipRule:
+      UseDynamicScore: 0
+      BaseRuns: 0
+  - PlayThisHalf: 0
+    StartDefenseSituation:
+      OutCount: 0
+      OnFirstBase: 0
+      OnSecondBase: 0
+      OnThirdBase: 0
+    SkipRule:
+      UseDynamicScore: 0
+      BaseRuns: 0
+  - PlayThisHalf: 0
+    StartDefenseSituation:
+      OutCount: 0
+      OnFirstBase: 0
+      OnSecondBase: 0
+      OnThirdBase: 0
+    SkipRule:
+      UseDynamicScore: 0
+      BaseRuns: 0
+  - PlayThisHalf: 0
+    StartDefenseSituation:
+      OutCount: 0
+      OnFirstBase: 0
+      OnSecondBase: 0
+      OnThirdBase: 0
+    SkipRule:
+      UseDynamicScore: 1
+      BaseRuns: 0
+  _bottom:
+  - PlayThisHalf: 1
+    StartDefenseSituation:
+      OutCount: 1
+      OnFirstBase: 1
+      OnSecondBase: 1
+      OnThirdBase: 0
+    SkipRule:
+      UseDynamicScore: 0
+      BaseRuns: 0
+  - PlayThisHalf: 0
+    StartDefenseSituation:
+      OutCount: 0
+      OnFirstBase: 0
+      OnSecondBase: 0
+      OnThirdBase: 0
+    SkipRule:
+      UseDynamicScore: 0
+      BaseRuns: 1
+  - PlayThisHalf: 0
+    StartDefenseSituation:
+      OutCount: 0
+      OnFirstBase: 0
+      OnSecondBase: 0
+      OnThirdBase: 0
+    SkipRule:
+      UseDynamicScore: 0
+      BaseRuns: 0
+  - PlayThisHalf: 0
+    StartDefenseSituation:
+      OutCount: 0
+      OnFirstBase: 0
+      OnSecondBase: 0
+      OnThirdBase: 0
+    SkipRule:
+      UseDynamicScore: 0
+      BaseRuns: 0
+  - PlayThisHalf: 1
+    StartDefenseSituation:
+      OutCount: 2
+      OnFirstBase: 0
+      OnSecondBase: 1
+      OnThirdBase: 1
+    SkipRule:
+      UseDynamicScore: 0
+      BaseRuns: 0
+  - PlayThisHalf: 0
+    StartDefenseSituation:
+      OutCount: 0
+      OnFirstBase: 0
+      OnSecondBase: 0
+      OnThirdBase: 0
+    SkipRule:
+      UseDynamicScore: 0
+      BaseRuns: 0
+  - PlayThisHalf: 1
+    StartDefenseSituation:
+      OutCount: 0
+      OnFirstBase: 0
+      OnSecondBase: 0
+      OnThirdBase: 0
+    SkipRule:
+      UseDynamicScore: 0
+      BaseRuns: 3
+  - PlayThisHalf: 1
+    StartDefenseSituation:
+      OutCount: 0
+      OnFirstBase: 0
+      OnSecondBase: 0
+      OnThirdBase: 0
+    SkipRule:
+      UseDynamicScore: 0
+      BaseRuns: 0
+  - PlayThisHalf: 1
+    StartDefenseSituation:
+      OutCount: 2
+      OnFirstBase: 1
+      OnSecondBase: 1
+      OnThirdBase: 1
+    SkipRule:
+      UseDynamicScore: 0
+      BaseRuns: 0
