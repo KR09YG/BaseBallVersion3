@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 
 public class BattingSystem : MonoBehaviour
 {
@@ -11,12 +11,16 @@ public class BattingSystem : MonoBehaviour
 
     private void Awake()
     {
-        _releseEvent.RegisterListener(ReleasedBall);
+        if (_releseEvent == null) Debug.LogError("[BattingSystem] ❌ PitchBallReleaseEventが設定されていません！");
+        else _releseEvent.RegisterListener(ReleasedBall);
+
+        _canSwing = false;
+        _isSwinging = false;
     }
 
     private void OnDestroy()
     {
-        _releseEvent.UnregisterListener(ReleasedBall);
+        _releseEvent?.UnregisterListener(ReleasedBall);
     }
 
     private void Update()
@@ -31,11 +35,17 @@ public class BattingSystem : MonoBehaviour
 
     public void StartBattingCalculate()
     {
+        if (_swingEvent == null)
+        {
+            Debug.LogError("[BattingSystem] ❌ SwingEventが設定されていません！");
+            return;
+        }
+
         _swingEvent.RaiseEvent();
     }
 
     /// <summary>
-    /// �{�[���������[�X���ꂽ�Ƃ��̏���
+    /// ボールがリリースされたときの処理
     /// </summary>
     private void ReleasedBall(PitchBallMove ball)
     {

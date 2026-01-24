@@ -109,27 +109,16 @@ public class BattingCalculator : MonoBehaviour
     [Header("デバッグ")]
     [SerializeField] private bool _enableDebugLogs = true;
 
-    private void Start()
+    private void Awake()
     {
-        if (_hitEvent != null)
-        {
-            _hitEvent.RegisterListener(OnHitAttempt);
-        }
-        else
-        {
-            Debug.LogError("[BattingCalculator] BattingHitEventが設定されていません");
-        }
+        if (_hitEvent != null) _hitEvent.RegisterListener(OnHitAttempt);
+        else Debug.LogError("[BattingCalculator] BattingHitEventが設定されていません");
 
-        // デバッグ：イベント設定確認
-        Debug.Log($"[BattingCalculator] Start - TrajectoryEvent={(_trajectoryEvent != null ? "OK" : "NULL")}, ResultEvent={(_battedBallResultEvent != null ? "OK" : "NULL")}");
     }
 
     private void OnDestroy()
     {
-        if (_hitEvent != null)
-        {
-            _hitEvent.UnregisterListener(OnHitAttempt);
-        }
+        _hitEvent?.UnregisterListener(OnHitAttempt);
     }
 
     /// <summary>
