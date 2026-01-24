@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using Cysharp.Threading.Tasks;
 using System.Threading;
 
-public class PitchController : MonoBehaviour
+public class PitchController : MonoBehaviour, IInitializable
 {
     [Header("必須参照")]
     [SerializeField] private Animator _pitcherAnimator;
@@ -16,6 +16,7 @@ public class PitchController : MonoBehaviour
     [SerializeField] private PitchPreset _currentPreset;
 
     [Header("アニメーション設定")]
+    [SerializeField] private string _idleTriggerName = "Idle";
     [SerializeField] private string _pitchTriggerName = "Pitch";
 
     [Header("デバッグ設定")]
@@ -26,11 +27,19 @@ public class PitchController : MonoBehaviour
     [Header("イベント")]
     [SerializeField] private PitchBallReleaseEvent _ballReleaseEvent;
     [SerializeField] private BallSpawnedEvent _ballSpawnedEvent;
+    [SerializeField] private StartPitchEvent _startPitchEvent;
 
     private PitchBallMove _ball;
     private List<Vector3> _currentTrajectory;
     private bool _isPitching = false;
     private CancellationTokenSource _cancellationTokenSource;
+
+    private void Awake()
+    {
+        if (_startPitchEvent != null) _startPitchEvent.RegisterListener(StartPitch);
+        else Debug.LogWarning("[PitchController] StartPitchEventが設定されていません");
+
+    }
 
     private void Start()
     {
@@ -50,19 +59,23 @@ public class PitchController : MonoBehaviour
     {
         _cancellationTokenSource?.Cancel();
         _cancellationTokenSource?.Dispose();
+        if (_startPitchEvent != null)
+        {
+            _startPitchEvent.UnregisterListener(StartPitch);
+        }
     }
 
-    private void Update()
+    /// <summary>
+    /// 初期化処理
+    /// </summary>
+    public void OnInitialized()
     {
-        if (Input.GetKeyDown(KeyCode.Space) && !_isPitching)
-        {
-            StartPitch();
-        }
+        _isPitching = false;
 
-        if (Input.GetKeyDown(KeyCode.Alpha1)) ChangePitchPreset(0);
-        if (Input.GetKeyDown(KeyCode.Alpha2)) ChangePitchPreset(1);
-        if (Input.GetKeyDown(KeyCode.Alpha3)) ChangePitchPreset(2);
-        if (Input.GetKeyDown(KeyCode.Alpha4)) ChangePitchPreset(3);
+        if (_pitcherAnimator != null)
+        {
+            _pitcherAnimator.SetTrigger(_idleTriggerName);
+        }
     }
 
     private void CreateBall()

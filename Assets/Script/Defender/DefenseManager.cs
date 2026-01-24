@@ -4,29 +4,17 @@ using System.Collections.Generic;
 using System.Threading;
 using UnityEngine;
 
-/// <summary>
-/// DefenseManager（守備）
-/// - 捕球前：CatchPlan確定後にベースカバーを先に走らせる
-/// - 捕球後：ThrowDecision → ThrowSteps 実行
-/// - ✅ OUT/SAFE判定（MVP）:
-///     「走者が塁に到達する残り秒」と「ボールがその塁に到達する秒」を比較して判定
-///     BallArriveTime <= RunnerArriveTime → OUT
-///     それ以外 → SAFE
-///
-/// 注意（MVP割り切り）:
-/// - 判定対象は「ベースへ投げた ThrowPlan（First/Second/Third/Home）」のみ
-/// - Cutoff/Return は判定しない
-/// - ThrowDelay などを厳密に入れたい場合は BallArriveTime に加算する（TODOコメントあり）
-/// </summary>
-public class DefenseManager : MonoBehaviour
+public class DefenseManager : MonoBehaviour, IInitializable
 {
     [Header("Fielders")]
     [SerializeField] private List<FielderController> _fielders;
     private Dictionary<PositionType, FielderController> _byPosition;
+    private Dictionary<FielderController, Vector3> _initialPositions = new Dictionary<FielderController, Vector3>();
 
     [Header("Hit Events")]
     [SerializeField] private BattingResultEvent _battingResultEvent;
     [SerializeField] private BattingBallTrajectoryEvent _battingBallTrajectoryEvent;
+    [SerializeField] private OnDefensePlayJudged _defensePlayJudgedEvent;
 
     [Header("Catch & Throw Events")]
     [SerializeField] private DefenderCatchEvent _defenderCatchEvent;
@@ -92,6 +80,32 @@ public class DefenseManager : MonoBehaviour
                 _byPosition.Add(f.Data.Position, f);
             else
                 Debug.LogWarning($"{f.Data.Position}が重複しています");
+        }
+
+        // 初期位置記録
+        _initialPositions.Clear();
+        foreach (var fielder in _fielders)
+        {
+            if (!_initialPositions.ContainsKey(fielder))
+            {
+                _initialPositions.Add(fielder, fielder.transform.position);
+            }
+            else
+            {
+                Debug.LogWarning($"Fielder {_fielders} position is already recorded.");
+            }
+        }
+    }
+
+    public void OnInitialized()
+    {
+        // フィールダーを初期位置に戻す
+        foreach (var fielder in _fielders)
+        {
+            if (_initialPositions.TryGetValue(fielder, out var initPos))
+            {
+                fielder.transform.position = initPos;
+            }
         }
     }
 
@@ -243,6 +257,8 @@ public class DefenseManager : MonoBehaviour
                               $"Runner={outcome.RunnerName}");
                     // 判定自体は「投げる前」に確定させてよい（MVP）。
                     // 実際の見た目は投げ切る。
+                    _defensePlayJudgedEvent.RaiseEvent(outcome);
+
                 }
 
                 await step.ThrowerFielder.ExecuteThrowStepAsync(step, _ballThrow, ct);
