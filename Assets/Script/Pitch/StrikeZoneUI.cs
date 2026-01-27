@@ -1,258 +1,146 @@
 ﻿using UnityEngine;
-using System.Collections.Generic;
 using Cysharp.Threading.Tasks;
 using System.Threading;
-
-/// <summary>
-/// ストライクゾーン通過予測マーカー
-/// </summary>
 public class StrikeZoneUI : MonoBehaviour
 {
-    [Header("参照")]
+    [SerializeField] private OnPitchBallReleaseEvent _pitchBallReleaseEvent;
+    [SerializeField] private OnBallReachedTargetEvent _ballReachedTargetEvent;
+    [SerializeField] private OnStrikeJudgeEvent _onStrikeJudgeEvent;
+
+    [Header("ストライクゾーンUIの設定")]
     [SerializeField] private StrikeZone _strikeZone;
-    [SerializeField] private GameObject _predictionMarker;
-    [SerializeField] private Renderer _markerRenderer;
+    [SerializeField] private GameObject _marker;
+    [SerializeField] private Renderer _renderer;
+    [SerializeField] private Color _strikeColor;
+    [SerializeField] private Color _ballColor;
+    [SerializeField] private LineRenderer _lineRenderer;
 
-    [Header("イベント")]
-    [SerializeField] private PitchBallReleaseEvent _pitchBallReleaseEvent;
-    [SerializeField] private BallReachedTargetEvent _ballReachedTargetEvent;
+    [Header("LineRendererの設定")]
+    [SerializeField] private bool _showInGame = true;  // ゲーム画面で表示
+    [SerializeField] private float _lineWidth = 0.01f;  // 線の太さ
+    [SerializeField] private Material _lineMaterial;  // 線のマテリアル
+    [SerializeField] private Color _zoneColor = Color.green;  // ストライクゾーンの色
 
-    [Header("表示設定")]
-    [SerializeField] private Color _strikeColor = new Color(0f, 1f, 0f, 0.8f);
-    [SerializeField] private Color _ballColor = new Color(1f, 0f, 0f, 0.8f);
-    [SerializeField] private bool _enableDebugLogs = false;
+    private CancellationTokenSource _cts;
 
-    private PitchBallMove _currentBall;
-    private Vector3 _predictedPosition;
-    private bool _hasPrediction = false;
-    private CancellationTokenSource _cancellationTokenSource;
-
-    private void Start()
+    private void Awake()
     {
-        _cancellationTokenSource = new CancellationTokenSource();
+        if (_pitchBallReleaseEvent != null) _pitchBallReleaseEvent.RegisterListener(OnRelease);
+        else Debug.LogError("[StrikeZoneUI] PitchBallReleaseEventが設定されていません！");
 
-        if (_enableDebugLogs)
-        {
-            Debug.Log("[StrikeZoneUI] Start");
-        }
+        if (_ballReachedTargetEvent != null) _ballReachedTargetEvent.RegisterListener(OnBallReached);
+        else Debug.LogError("[StrikeZoneUI] BallReachedTargetEventが設定されていません！");
 
-        // 初期状態でマーカー非表示
-        if (_predictionMarker != null)
-        {
-            _predictionMarker.SetActive(false);
-        }
-        else
-        {
-            Debug.LogError("[StrikeZoneUI] ❌ Prediction Markerが設定されていません！");
-        }
-
-        // バリデーション
-        if (_strikeZone == null)
-        {
-            Debug.LogError("[StrikeZoneUI] ❌ Strike Zoneが設定されていません！");
-        }
-
-        // イベント購読
-        if (_pitchBallReleaseEvent != null)
-        {
-            _pitchBallReleaseEvent.RegisterListener(OnBallReleased);
-            if (_enableDebugLogs)
-            {
-                Debug.Log("[StrikeZoneUI] PitchBallReleaseEventに購読");
-            }
-        }
-        else
-        {
-            Debug.LogError("[StrikeZoneUI] ❌ PitchBallReleaseEventが設定されていません！");
-        }
-
-        if (_ballReachedTargetEvent != null)
-        {
-            _ballReachedTargetEvent.RegisterListener(OnBallReachedTarget);
-        }
-        else
-        {
-            Debug.LogError("[StrikeZoneUI] ❌ BallReachedTargetEventが設定されていません！");
-        }
+        if (_onStrikeJudgeEvent != null) _onStrikeJudgeEvent.RegisterListener(ShowPrediction);
+        else Debug.LogError("[StrikeZoneUI] OnStrikeJudgeEventが設定されていません！");
     }
 
     private void OnDestroy()
     {
-        // キャンセル
-        _cancellationTokenSource?.Cancel();
-        _cancellationTokenSource?.Dispose();
+        _pitchBallReleaseEvent?.UnregisterListener(OnRelease);
+        _ballReachedTargetEvent?.UnregisterListener(OnBallReached);
+        _onStrikeJudgeEvent?.UnregisterListener(ShowPrediction);
+        _cts?.Cancel();
+        _cts?.Dispose();
+    }
+
+    private void Start()
+    {
+        _cts = new CancellationTokenSource();
+        _marker.SetActive(false);
+        SetupLineRenderer();
+    }
+
+    private void OnRelease(PitchBallMove ball)
+    {
+        _lineRenderer.enabled = false;
+    }
+
+
+    private void OnBallReached(PitchBallMove ball)
+    {
+        _lineRenderer.enabled = true;
     }
 
     /// <summary>
-    /// ボールリリース時の処理（PitchBallReleaseEventから呼ばれる）
+    /// 投球予測を表示する
     /// </summary>
-    private void OnBallReleased(PitchBallMove ball)
+    public void ShowPrediction(bool isStrike, Vector3 crossPos)
     {
-        if (_enableDebugLogs)
-        {
-            Debug.Log("[StrikeZoneUI] OnBallReleased呼び出し");
-        }
-
-        _currentBall = ball;
-        _hasPrediction = false;
-
-        if (_currentBall == null)
-        {
-            Debug.LogWarning("[StrikeZoneUI] ⚠️ Ballがnullです");
-            return;
-        }
-
-        // 通過予測を計算
-        CalculatePredictedPosition(ball);
+        _marker.transform.position = crossPos;
+        _marker.SetActive(true);
+        _renderer.material.color = isStrike ? _strikeColor : _ballColor;
     }
 
-    /// <summary>
-    /// ストライクゾーン通過予測位置を計算
-    /// </summary>
-    private void CalculatePredictedPosition(PitchBallMove ball)
+    private void SetupLineRenderer()
     {
-        if (_enableDebugLogs)
-        {
-            Debug.Log("[StrikeZoneUI] 予測計算開始");
-        }
+        if (!_showInGame) return;
 
-        if (ball == null)
+        if (_lineRenderer == null)
         {
-            Debug.LogError("[StrikeZoneUI] ❌ Ballがnullです");
+            Debug.LogError("[StrikeZoneUI] LineRendererが設定されていません！");
             return;
         }
 
-        List<Vector3> trajectory = ball.Trajectory;
+        // LineRendererの設定
+        _lineRenderer.startWidth = _lineWidth;
+        _lineRenderer.endWidth = _lineWidth;
+        _lineRenderer.loop = true;  // ループして閉じた形にする
+        _lineRenderer.positionCount = 4;  // 4つの頂点（矩形）
+        _lineRenderer.useWorldSpace = false;  // ローカル座標を使用
 
-        if (trajectory == null)
+        // マテリアル設定
+        if (_lineMaterial != null)
         {
-            Debug.LogError("[StrikeZoneUI] ❌ 軌道データがnullです");
-            return;
-        }
-
-        if (trajectory.Count < 2)
-        {
-            Debug.LogError($"[StrikeZoneUI] ❌ 軌道データが不足: {trajectory.Count}点");
-            return;
-        }
-
-        if (_enableDebugLogs)
-        {
-            Debug.Log($"[StrikeZoneUI] 軌道データ: {trajectory.Count}点");
-        }
-
-        float strikeZoneZ = _strikeZone.Center.z;
-
-        if (_enableDebugLogs)
-        {
-            Debug.Log($"[StrikeZoneUI] ストライクゾーンZ座標: {strikeZoneZ}");
-            Debug.Log($"[StrikeZoneUI] 軌道開始Z: {trajectory[0].z}, 終了Z: {trajectory[trajectory.Count - 1].z}");
-        }
-
-        // ストライクゾーンを通過する点を探す
-        for (int i = 0; i < trajectory.Count - 1; i++)
-        {
-            Vector3 point1 = trajectory[i];
-            Vector3 point2 = trajectory[i + 1];
-
-            if ((point1.z <= strikeZoneZ && point2.z >= strikeZoneZ) ||
-                (point1.z >= strikeZoneZ && point2.z <= strikeZoneZ))
-            {
-                float t = Mathf.InverseLerp(point1.z, point2.z, strikeZoneZ);
-                _predictedPosition = Vector3.Lerp(point1, point2, t);
-                _hasPrediction = true;
-
-                Debug.Log($"[StrikeZoneUI] ✅ 予測通過位置: {_predictedPosition}");
-
-                ShowPredictionMarker(_predictedPosition);
-                return;
-            }
-        }
-
-        Debug.LogWarning("[StrikeZoneUI] ⚠️ 通過位置が見つかりませんでした");
-    }
-
-    /// <summary>
-    /// 予測マーカーを表示
-    /// </summary>
-    private void ShowPredictionMarker(Vector3 worldPosition)
-    {
-        if (_predictionMarker == null)
-        {
-            Debug.LogError("[StrikeZoneUI] ❌ マーカーがnullで表示できません");
-            return;
-        }
-
-        _predictionMarker.transform.position = worldPosition;
-        _predictionMarker.SetActive(true);
-
-        if (_enableDebugLogs)
-        {
-            Debug.Log($"[StrikeZoneUI] マーカー表示: 位置={worldPosition}");
-        }
-
-        bool isStrike = _strikeZone.IsInZone(worldPosition);
-
-        if (_markerRenderer != null)
-        {
-            Color targetColor = isStrike ? _strikeColor : _ballColor;
-            _markerRenderer.material.color = targetColor;
-
-            if (_enableDebugLogs)
-            {
-                Debug.Log($"[StrikeZoneUI] 判定: {(isStrike ? "ストライク" : "ボール")}, 色: {targetColor}");
-            }
+            _lineRenderer.material = _lineMaterial;
         }
         else
         {
-            Debug.LogWarning("[StrikeZoneUI] ⚠️ Marker Rendererが設定されていません");
+            // デフォルトマテリアル（Unlit/Color）
+            _lineRenderer.material = new Material(Shader.Find("Sprites/Default"));
         }
+
+        _lineRenderer.startColor = _zoneColor;
+        _lineRenderer.endColor = _zoneColor;
+
+        // 矩形の4つの頂点を設定
+        UpdateLineRendererPositions();
     }
 
     /// <summary>
-    /// ボール到達時の処理（Ball.OnBallReachedTargetから呼ばれる）
+    /// LineRendererの頂点位置を更新する
     /// </summary>
-    private void OnBallReachedTarget(PitchBallMove ball)
+    private void UpdateLineRendererPositions()
     {
-        if (ball == null) return;
+        if (_lineRenderer == null) return;
 
-        Vector3 ballPosition = ball.transform.position;
-        bool isStrike = _strikeZone.IsInZone(ballPosition);
+        // ストライクゾーンのサイズを取得
+        float halfWidth = _strikeZone.Size.x * 0.5f;
+        float halfHeight = _strikeZone.Size.y * 0.5f;
 
-        Debug.Log($"[StrikeZoneUI] 最終判定: {(isStrike ? "ストライク" : "ボール")}");
-
-        if (_hasPrediction)
+        // 矩形の4つの頂点（ローカル座標）
+        Vector3[] positions = new Vector3[4]
         {
-            float error = Vector3.Distance(_predictedPosition, ballPosition);
-            Debug.Log($"[StrikeZoneUI] 予測誤差: {error * 100f:F2}cm");
-        }
+            new Vector3(-halfWidth, -halfHeight, 0),  // 左下
+            new Vector3(halfWidth, -halfHeight, 0),   // 右下
+            new Vector3(halfWidth, halfHeight, 0),    // 右上
+            new Vector3(-halfWidth, halfHeight, 0)    // 左上
+        };
 
-        _currentBall = null;
-
-        // 遅延後にマーカー非表示
-        HideMarkerAsync(2f).Forget();
+        _lineRenderer.SetPositions(positions);
     }
 
-    /// <summary>
-    /// 遅延後にマーカーを非表示
-    /// </summary>
-    private async UniTaskVoid HideMarkerAsync(float delay)
+    public void HideAfter(float seconds)
+    {
+        HideAsync(seconds).Forget();
+    }
+
+    private async UniTaskVoid HideAsync(float seconds)
     {
         await UniTask.Delay(
-            System.TimeSpan.FromSeconds(delay),
-            cancellationToken: _cancellationTokenSource.Token
-        );
+            System.TimeSpan.FromSeconds(seconds),
+            cancellationToken: _cts.Token);
 
-        if (_predictionMarker != null)
-        {
-            _predictionMarker.SetActive(false);
-
-            if (_enableDebugLogs)
-            {
-                Debug.Log("[StrikeZoneUI] マーカー非表示");
-            }
-        }
-
-        _hasPrediction = false;
+        _marker.SetActive(false);
     }
 }
