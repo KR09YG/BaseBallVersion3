@@ -7,10 +7,10 @@ public class PitchBallMove : BallMoveTrajectory
 
     public List<Vector3> Trajectory => _trajectory;
 
-    [SerializeField] private BallReachedTargetEvent _ballReachedTargetEvent;
-    [SerializeField] private SwingEvent _swingEvent;
-    [SerializeField] private BattingHitEvent _battingHitEvent;
-    [SerializeField] private BattingResultEvent _battingResultEvent;
+    [SerializeField] private OnBallReachedTargetEvent _ballReachedTargetEvent;
+    [SerializeField] private OnSwingEvent _swingEvent;
+    [SerializeField] private OnBattingHitEvent _battingHitEvent;
+    [SerializeField] private OnBattingResultEvent _battingResultEvent;
 
     private void Awake()
     {
@@ -64,10 +64,16 @@ public class PitchBallMove : BallMoveTrajectory
 
     protected override void OnReachedEnd()
     {
+        Debug.Log("PitchBallMove: ボールがターゲットに到達しました");
         _isMoving = false;
         if (_ballReachedTargetEvent != null)
+        {
             _ballReachedTargetEvent.RaiseEvent(this);
-        else
-            Debug.LogError("[PitchBallMove] BallReachedTargetEventが設定されていません");
+            Debug.Log("PitchBallMove: BallReachedTargetEventを発火しました");
+        }
+        else Debug.LogError("[PitchBallMove] BallReachedTargetEventが設定されていません");
+
+        _trajectory = null;
+        _elapsedTime = 0f;
     }
 }

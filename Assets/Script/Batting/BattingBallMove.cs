@@ -1,15 +1,18 @@
 ﻿using UnityEngine;
 using System;
 using System.Collections.Generic;
+using Cysharp.Threading.Tasks;
 
 public class BattingBallMove : BallMoveTrajectory
 {
     [Header("イベント")]
-    [SerializeField] private BattingBallTrajectoryEvent _trajectoryEvent;
-    [SerializeField] private BattingResultEvent _resultEvent;
-    [SerializeField] private DefenderCatchEvent _defenderCatchEvent;    
+    [SerializeField] private OnBattingBallTrajectoryEvent _trajectoryEvent;
+    [SerializeField] private OnBattingResultEvent _resultEvent;
+    [SerializeField] private OnDefenderCatchEvent _defenderCatchEvent;
+    [SerializeField] private OnFoulBallCompletedEvent _foulBallCompletedEvent;
+    
+    [Tooltip("ファールになった時の表示時間(ms)"),SerializeField] private int _foulBallDisplayTime = 6000;
 
-    private float _elapsedTime;
     private bool _hasLanded = false;
     private BattingBallResult _result;
 
@@ -92,14 +95,28 @@ public class BattingBallMove : BallMoveTrajectory
             return;
         }
 
+        if (_result.IsFoul)
+        {
+            _ = WaitFoulBallAsync();
+        }
+
         StartMoving();
+    }
+
+    private async UniTaskVoid WaitFoulBallAsync()
+    {
+        await UniTask.Delay(_foulBallDisplayTime);
+        _isMoving = false;
+        _foulBallCompletedEvent.RaiseEvent();
     }
 
     private void StartMoving()
     {
         _elapsedTime = 0f;
         _isMoving = true;
+        _hasLanded = false;
     }    
+
     /// <summary>
     /// 守備側に捕球された
     /// </summary>

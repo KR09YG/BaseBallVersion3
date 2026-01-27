@@ -4,6 +4,17 @@ using System.Collections.Generic;
 using System.Threading;
 using UnityEngine;
 
+public struct DefensePlayOutcome
+{
+    public bool HasJudgement;        // 判定ができたか（ベース送球が無い等でfalseになり得る）
+    public bool IsOut;               // OUTならtrue
+    public ThrowPlan Plan;           // First/Second/Third/Home
+    public BaseId TargetBase;        // 判定した塁
+    public float BallArriveTime;     // その塁にボールが着く予測秒（相対）
+    public float RunnerArriveTime;   // その塁に走者が着く残り秒（相対）
+    public string RunnerName;        // 最短走者名（デバッグ用）
+}
+
 public class DefenseManager : MonoBehaviour, IInitializable
 {
     [Header("Fielders")]
@@ -12,19 +23,20 @@ public class DefenseManager : MonoBehaviour, IInitializable
     private Dictionary<FielderController, Vector3> _initialPositions = new Dictionary<FielderController, Vector3>();
 
     [Header("Hit Events")]
-    [SerializeField] private BattingResultEvent _battingResultEvent;
-    [SerializeField] private BattingBallTrajectoryEvent _battingBallTrajectoryEvent;
+    [SerializeField] private OnBattingResultEvent _battingResultEvent;
+    [SerializeField] private OnBattingBallTrajectoryEvent _battingBallTrajectoryEvent;
     [SerializeField] private OnDefensePlayJudged _defensePlayJudgedEvent;
 
     [Header("Catch & Throw Events")]
-    [SerializeField] private DefenderCatchEvent _defenderCatchEvent;
+    [SerializeField] private OnDefenderCatchEvent _defenderCatchEvent;
+    [SerializeField] private OnDefensePlayFinishedEvent _defenderFinishedEvent;
 
     [Header("World refs")]
     [SerializeField] private BaseManager _baseManager;
     [SerializeField] private RunnerManager _runnerManager;
-    [SerializeField] private BallSpawnedEvent _ballSpawnedEvent;
+    [SerializeField] private OnBallSpawnedEvent _ballSpawnedEvent;
 
-    [SerializeField] private DefenseSituation _situation;
+    private DefenseSituation _situation;
 
     private const float DELTA_TIME = 0.01f;
 
@@ -39,19 +51,6 @@ public class DefenseManager : MonoBehaviour, IInitializable
     private bool _isThrowing;
     private bool _hasPendingResult;
 
-    // ===== OUT/SAFE 判定用 =====
-    public struct DefensePlayOutcome
-    {
-        public bool HasJudgement;        // 判定ができたか（ベース送球が無い等でfalseになり得る）
-        public bool IsOut;               // OUTならtrue
-        public ThrowPlan Plan;           // First/Second/Third/Home
-        public BaseId TargetBase;        // 判定した塁
-        public float BallArriveTime;     // その塁にボールが着く予測秒（相対）
-        public float RunnerArriveTime;   // その塁に走者が着く残り秒（相対）
-        public string RunnerName;        // 最短走者名（デバッグ用）
-    }
-
-    public event Action<DefensePlayOutcome> OnDefensePlayFinished;
 
     // RunnerETA を取るバッファ（RunnerManager.GetAllRunningETAs を使う前提）
     private readonly List<RunnerETA> _etaBuffer = new(8);
@@ -97,8 +96,9 @@ public class DefenseManager : MonoBehaviour, IInitializable
         }
     }
 
-    public void OnInitialized()
+    public void OnInitialized(DefenseSituation situation)
     {
+        _situation = situation;
         // フィールダーを初期位置に戻す
         foreach (var fielder in _fielders)
         {
@@ -212,8 +212,6 @@ public class DefenseManager : MonoBehaviour, IInitializable
         if (steps == null || steps.Count == 0)
         {
             Debug.LogWarning("Throw steps empty.");
-            // 捕球だけで終わる（フライアウト等）はここで通知してもOKだが、いったん未判定として返す
-            OnDefensePlayFinished?.Invoke(new DefensePlayOutcome { HasJudgement = false });
             return;
         }
 
@@ -224,10 +222,10 @@ public class DefenseManager : MonoBehaviour, IInitializable
         _currentThrowSteps = steps;
         _currentThrowIndex = 0;
 
-        ExecuteThrowSequenceAsync(_throwCts.Token).Forget();
+        ExecuteThrowSequenceAsync(_throwCts.Token, isFly).Forget();
     }
 
-    private async UniTaskVoid ExecuteThrowSequenceAsync(CancellationToken ct)
+    private async UniTaskVoid ExecuteThrowSequenceAsync(CancellationToken ct, bool isFly)
     {
         _isThrowing = true;
 
@@ -272,9 +270,10 @@ public class DefenseManager : MonoBehaviour, IInitializable
         finally
         {
             _isThrowing = false;
-
+            if (isFly) outcome.IsOut = true;
             // 最終的な結果を通知
-            OnDefensePlayFinished?.Invoke(outcome);
+            if (_defenderFinishedEvent != null) _defenderFinishedEvent.RaiseEvent(outcome);
+            else Debug.LogError("[DefenseManager] OnDefenderFinishedEventが設定されていない");
         }
     }
 
