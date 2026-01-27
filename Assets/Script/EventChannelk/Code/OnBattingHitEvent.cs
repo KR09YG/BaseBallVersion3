@@ -2,7 +2,7 @@ using System;
 using UnityEngine;
 
 [CreateAssetMenu(fileName = "BattingContactEvent", menuName = "Scriptable Objects/BattingContactEvent")]
-public class BattingHitEvent : ScriptableObject
+public class OnBattingHitEvent : ScriptableObject
 {
     private Action<PitchBallMove> _onHitAttempt;
 

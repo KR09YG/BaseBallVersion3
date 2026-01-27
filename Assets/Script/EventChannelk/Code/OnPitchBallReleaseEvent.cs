@@ -2,7 +2,7 @@ using UnityEngine;
 using System;
 
 [CreateAssetMenu(fileName = "PitchBallReleaseEvent", menuName = "Scriptable Objects/PitchBallReleaseEvent")]
-public class PitchBallReleaseEvent : ScriptableObject
+public class OnPitchBallReleaseEvent : ScriptableObject
 {
     private Action<PitchBallMove> _onRelease;
 

@@ -2,7 +2,7 @@ using System;
 using UnityEngine;
 
 [CreateAssetMenu(fileName = "InitializedEvent", menuName = "Scriptable Objects/InitializedEvent")]
-public class InitializedEvent : ScriptableObject
+public class OnInitializedEvent : ScriptableObject
 {
     private Action _initializedEvent;
 

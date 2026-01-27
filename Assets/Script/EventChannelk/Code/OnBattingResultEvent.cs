@@ -2,7 +2,7 @@ using System;
 using UnityEngine;
 
 [CreateAssetMenu(fileName = "BattingResultEvent", menuName = "Scriptable Objects/BattingResultEvent")]
-public class BattingResultEvent : ScriptableObject
+public class OnBattingResultEvent : ScriptableObject
 {
     private Action<BattingBallResult> _battingResultAction;
 

@@ -2,7 +2,7 @@ using System;
 using UnityEngine;
 
 [CreateAssetMenu(fileName = "DefenderCatchEvent", menuName = "Scriptable Objects/DefenderCatchEvent")]
-public class DefenderCatchEvent : ScriptableObject
+public class OnDefenderCatchEvent : ScriptableObject
 {
     private Action<FielderController, bool> _defenderCatch;
 

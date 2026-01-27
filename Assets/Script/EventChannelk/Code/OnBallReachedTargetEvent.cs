@@ -1,8 +1,8 @@
 using System;
 using UnityEngine;
 
-[CreateAssetMenu(fileName = "BallReachedTargetEvent", menuName = "Scriptable Objects/NewScriptableObjectScript")]
-public class BallReachedTargetEvent : ScriptableObject
+[CreateAssetMenu(fileName = "BallReachedTargetEvent", menuName = "Scriptable Objects/BallReachedTarget")]
+public class OnBallReachedTargetEvent : ScriptableObject
 {
     private Action<PitchBallMove> _reachedAction;
 

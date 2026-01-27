@@ -2,7 +2,7 @@ using System;
 using UnityEngine;
 
 [CreateAssetMenu(fileName = "BattingInput", menuName = "Scriptable Objects/BattingInput")]
-public class BattingInputEvent : ScriptableObject
+public class OnBattingInputEvent : ScriptableObject
 {
     private Action _action;
 

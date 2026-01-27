@@ -2,7 +2,7 @@ using System;
 using UnityEngine;
 
 [CreateAssetMenu(fileName = "SwingEvent", menuName = "Scriptable Objects/SwingEvent")]
-public class SwingEvent : ScriptableObject
+public class OnSwingEvent : ScriptableObject
 {
     private Action _swingEvent;
 

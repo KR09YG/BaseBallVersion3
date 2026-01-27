@@ -2,7 +2,7 @@ using System;
 using UnityEngine;
 
 [CreateAssetMenu(fileName = "StartPitch", menuName = "Scriptable Objects/StartPitch")]
-public class StartPitchEvent : ScriptableObject
+public class OnStartPitchEvent : ScriptableObject
 {
     private Action _startPitchEvent;
 

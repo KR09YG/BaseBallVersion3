@@ -2,7 +2,7 @@ using System;
 using UnityEngine;
 
 [CreateAssetMenu(fileName = "Ball", menuName = "Scriptable Objects/Ball")]
-public class BallSpawnedEvent : ScriptableObject
+public class OnBallSpawnedEvent : ScriptableObject
 {
     private Action<GameObject> _onBallSpawned;
 

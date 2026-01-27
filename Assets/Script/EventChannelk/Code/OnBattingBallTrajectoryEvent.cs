@@ -4,7 +4,7 @@ using UnityEngine;
 using System.Collections.Generic;
 
 [CreateAssetMenu(fileName = "BattingTrajectoryEvent", menuName = "Scriptable Objects/BattingTrajectoryEvent")]
-public class BattingBallTrajectoryEvent : ScriptableObject
+public class OnBattingBallTrajectoryEvent : ScriptableObject
 {
     private Action<List<Vector3>> _ballResultAction;
 
