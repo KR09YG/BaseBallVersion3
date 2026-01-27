@@ -1,4 +1,4 @@
-using UnityEngine;
+ï»¿using UnityEngine;
 using System.Collections.Generic;
 using System;
 public readonly struct RunnerETA
@@ -15,12 +15,11 @@ public readonly struct RunnerETA
     }
 }
 
-public class RunnerManager : MonoBehaviour , IRunnerRunStartListener
+public class RunnerManager : MonoBehaviour , IRunnerRunStartListener,IInitializable
 {
-    [SerializeField] private DefenseSituation _situation;
     [SerializeField] private BaseManager _baseManager;
 
-    [SerializeField] private BattingResultEvent _resultEvent;
+    [SerializeField] private OnBattingResultEvent _resultEvent;
 
     [Header("Runner refs (optional)")]
     [SerializeField] private Runner _batter;
@@ -33,23 +32,13 @@ public class RunnerManager : MonoBehaviour , IRunnerRunStartListener
 
     private void Awake()
     {
-        if (_situation == null)
-        {
-            Debug.LogError("DefenseSituation is not assigned in RunnerManager.");
-        }
+        if (_resultEvent != null) _resultEvent.RegisterListener(OnBattingResult);
+        else Debug.LogError("[RunnerManager] BattingResultEventãŒè¨­å®šã•ã‚Œã¦ã„ã¾ã›ã‚“ï¼");
 
-        if (_resultEvent != null)
-        {
-            _resultEvent.RegisterListener(OnBattingResult);
-        }
-
-        // •K‚¸4l•ª‚ğ—pˆÓiQÆ‚ª‚ ‚ê‚Îg‚¢A‚È‚¯‚ê‚Î¶¬j
+        // å¿…ãš4äººåˆ†ã‚’ç”¨æ„ï¼ˆå‚ç…§ãŒã‚ã‚Œã°ä½¿ã„ã€ãªã‘ã‚Œã°ç”Ÿæˆï¼‰
         EnsureRunnerExists(RunnerType.First, _firstRunner, "Runner_First");
         EnsureRunnerExists(RunnerType.Second, _secondRunner, "Runner_Second");
         EnsureRunnerExists(RunnerType.Third, _thirdRunner, "Runner_Third");
-
-        // ‰Šú‰»ió‹µ‚É‡‚í‚¹‚Ä—LŒø/–³Œøj
-        InitializeRunnersFromSituation();
     }
 
     private void OnDestroy()
@@ -76,26 +65,26 @@ public class RunnerManager : MonoBehaviour , IRunnerRunStartListener
     }
 
     /// <summary>
-    /// Œ»İ‚Ì DefenseSituation ‚É‡‚í‚¹‚Ä‘–Ò‚ğ—LŒø‰»‚·‚é
+    /// ç¾åœ¨ã® DefenseSituation ã«åˆã‚ã›ã¦èµ°è€…ã‚’æœ‰åŠ¹åŒ–ã™ã‚‹
     /// </summary>
-    public void InitializeRunnersFromSituation()
+    public void OnInitialized(DefenseSituation situation)
     {
-        if (_situation == null)
+        if (situation == null)
         {
             Debug.LogError("Cannot initialize runners: DefenseSituation is null.");
             return;
         }
         _activeRunners.Clear();
-        // —Ûã‘–Ò‚Í situation ‚É‰‚¶‚Ä—LŒø‰»
-        SetRunnerActive(RunnerType.First, _situation.OnFirstBase);
-        SetRunnerActive(RunnerType.Second, _situation.OnSecondBase);
-        SetRunnerActive(RunnerType.Third, _situation.OnThirdBase);
+        // å¡ä¸Šèµ°è€…ã¯ situation ã«å¿œã˜ã¦æœ‰åŠ¹åŒ–
+        SetRunnerActive(RunnerType.First, situation.OnFirstBase);
+        SetRunnerActive(RunnerType.Second, situation.OnSecondBase);
+        SetRunnerActive(RunnerType.Third, situation.OnThirdBase);
 
         _runners[RunnerType.First].SetCurrentBase(_baseManager.GetBasePosition(BaseId.First), BaseId.First);
         _runners[RunnerType.Second].SetCurrentBase(_baseManager.GetBasePosition(BaseId.Second), BaseId.Second);
         _runners[RunnerType.Third].SetCurrentBase(_baseManager.GetBasePosition(BaseId.Third), BaseId.Third);
 
-        Debug.Log($"[RunnerManager] Init: 1B={_situation.OnFirstBase}, 2B={_situation.OnSecondBase}, 3B={_situation.OnThirdBase}, Outs={_situation.OutCount}");
+        Debug.Log($"[RunnerManager] Init: 1B={situation.OnFirstBase}, 2B={situation.OnSecondBase}, 3B={situation.OnThirdBase}, Outs={situation.OutCount}");
     }
 
     private void SetRunnerActive(RunnerType type, bool active)
@@ -114,7 +103,7 @@ public class RunnerManager : MonoBehaviour , IRunnerRunStartListener
     {
         if (!result.IsFoul && result.IsHit)
         {
-            // ‘Å‹…‚ª—LŒø‚Èƒqƒbƒg‚Ìê‡A‘S‘–Ò‚ğŸ‚Ì—Û‚Öi‚ß‚é
+            // æ‰“çƒãŒæœ‰åŠ¹ãªãƒ’ãƒƒãƒˆã®å ´åˆã€å…¨èµ°è€…ã‚’æ¬¡ã®å¡ã¸é€²ã‚ã‚‹
             foreach (var runner in _activeRunners)
             {
                 Action action = () =>
@@ -128,7 +117,7 @@ public class RunnerManager : MonoBehaviour , IRunnerRunStartListener
     }
 
     /// <summary>
-    /// ‘S‘–Ò‚ÌETA‚ğ“’BŠÔ‚ª‹ß‚¢‡‚Éæ“¾‚·‚é
+    /// å…¨èµ°è€…ã®ETAã‚’åˆ°é”æ™‚é–“ãŒè¿‘ã„é †ã«å–å¾—ã™ã‚‹
     /// </summary>
     public int GetAllRunningETAs(List<RunnerETA> buffer, bool sortByRemaining = true)
     {

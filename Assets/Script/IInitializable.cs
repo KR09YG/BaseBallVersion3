@@ -1,4 +1,4 @@
 public interface IInitializable
 {
-    public void OnInitialized();
+    public void OnInitialized(DefenseSituation situation);
 }
