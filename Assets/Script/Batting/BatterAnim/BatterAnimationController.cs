@@ -3,27 +3,21 @@ using Cysharp.Threading.Tasks;
 using System;
 using System.Threading;
 
-/// <summary>
-/// バッティングアニメーション制御（Preparation統合版）
-/// 改善点:
-/// - 結果再生UniTaskの多重起動をキャンセルで抑止
-/// - 打席シーケンスIDで遅延/二重イベントの誤適用を防止
-/// - Animator.Playを行う前にパラメータ反映を優先
-/// - フラグ乱立を整理し、状態を中心にガードする
-/// </summary>
 [RequireComponent(typeof(Animator))]
 public class BattingAnimationController : MonoBehaviour, IInitializable
 {
     [Header("参照")]
     [SerializeField] private Animator _animator;
     [SerializeField] private BattingIKController _ikController;
+    [SerializeField] private Runner _runner;
 
     [Header("イベント")]
-    [SerializeField] private PitchBallReleaseEvent _ballReleaseEvent;
-    [SerializeField] private BattingResultEvent _battingResultEvent;
-    [SerializeField] private BattingInputEvent _battingInputEvent;
-    [SerializeField] private SwingEvent _swingEvent;
+    [SerializeField] private OnPitchBallReleaseEvent _ballReleaseEvent;
+    [SerializeField] private OnBattingResultEvent _battingResultEvent;
+    [SerializeField] private OnBattingInputEvent _battingInputEvent;
+    [SerializeField] private OnSwingEvent _swingEvent;
     [SerializeField] private OnBatterReadyForPitchEvent _onBatterReadyForPitchEvent;
+    [SerializeField] private OnAtBatResetEvent _atBatResetEvent;
 
     [Header("アニメーションパラメータ名")]
     [SerializeField] private string _preparationTrigger = "Prepare";
@@ -35,13 +29,11 @@ public class BattingAnimationController : MonoBehaviour, IInitializable
     [SerializeField] private string _groundBallStateName = "GroundBall";
     [SerializeField] private string _hitStateName = "Hit";
     [SerializeField] private string _homeRunStateName = "HomeRun";
+    [SerializeField] private string _idleStateName = "Idle"; // 追加：Resetで使う
 
     [Header("途中再生設定")]
-    [Tooltip("結果アニメーションの開始位置（normalized time）")]
     [Range(0f, 1f)]
     [SerializeField] private float _resultStartNormalizedTime = 0.617f;
-
-    [Tooltip("途中再生時の一時停止時間（秒）")]
     [SerializeField] private float _resultAnimationPauseTime = 0.1f;
 
     [Header("デバッグ")]
@@ -53,32 +45,26 @@ public class BattingAnimationController : MonoBehaviour, IInitializable
     private Vector3 _initialRote;
     private Vector3 _batterboxPos;
 
-    // Preparationの停止/再開のための状態
     private bool _isPreparationPaused;
-
-    // 結果待ち（Impact後に結果イベントを受ける想定）
     private bool _isWaitingForResult;
     private bool _hasJudged;
 
-    // 打席単位でのイベント整合性を取るためのシーケンスID
+    // 「前の打席の遅延処理を無効化する」ための世代
     private int _sequenceId;
     private int _activeSequenceId;
 
-    // 結果再生UniTaskの多重起動を抑止するキャンセル
     private CancellationTokenSource _resultPlaybackCts;
 
     public BattingState CurrentState => _currentState;
-
-    // 「入力可能」かは状態+停止状態から導出
     public bool CanSwing => _currentState == BattingState.Preparing && _isPreparationPaused;
 
     private void Awake()
     {
-        if (_animator == null)
-            _animator = GetComponent<Animator>();
+        if (_animator == null) _animator = GetComponent<Animator>();
 
         _initialPos = transform.position;
         _initialRote = transform.eulerAngles;
+        _batterboxPos = transform.position; // 念のため初期値を入れておく
     }
 
     private void OnEnable()
@@ -91,13 +77,17 @@ public class BattingAnimationController : MonoBehaviour, IInitializable
 
         if (_battingResultEvent != null) _battingResultEvent.RegisterListener(OnBattingResult);
         else Debug.LogError("[BattingAnimation] BattingResultEventが設定されていません");
+
+        if (_atBatResetEvent != null) _atBatResetEvent.RegisterListener(OnAtBatReset);
+        else Debug.LogError("[BattingAnimation] AtBatResetEventが設定されていません");
     }
 
     private void OnDisable()
     {
-        if (_ballReleaseEvent != null) _ballReleaseEvent.UnregisterListener(OnBallReleased);
-        if (_battingInputEvent != null) _battingInputEvent.UnregisterListener(OnSwingInput);
-        if (_battingResultEvent != null) _battingResultEvent.UnregisterListener(OnBattingResult);
+        _ballReleaseEvent?.UnregisterListener(OnBallReleased);
+        _battingInputEvent?.UnregisterListener(OnSwingInput);
+        _battingResultEvent?.UnregisterListener(OnBattingResult);
+        _atBatResetEvent?.UnregisterListener(OnAtBatReset);
 
         CancelResultPlayback();
     }
@@ -117,9 +107,53 @@ public class BattingAnimationController : MonoBehaviour, IInitializable
         }
     }
 
+    // 重要：ロジック状態・Animator状態・フラグをまとめて「安全なIdle」に戻す
+    private void ResetToIdle(bool playIdleState)
+    {
+        CancelResultPlayback();
+
+        _currentState = BattingState.Idle;
+        _hasJudged = false;
+        _isWaitingForResult = false;
+        _isPreparationPaused = false;
+
+        _animator.speed = 1f;
+
+        // Trigger/Parameterの残りが次の遷移を壊すのを防ぐ
+        if (!string.IsNullOrEmpty(_preparationTrigger))
+            _animator.ResetTrigger(_preparationTrigger);
+
+        _animator.SetInteger(_resultTypeParameter, -1);
+
+        if (playIdleState)
+            _animator.Play(_idleStateName, 0, 0f);
+
+        _ikController?.OnAnimationCompleted();
+    }
+
+    // AtBatのリセット（イベントから呼ばれる）
+    private void OnAtBatReset()
+    {
+        // ここで世代を進めて、残っている遅延/古いイベントを無効化する
+        _sequenceId++;
+        _activeSequenceId = _sequenceId;
+        _animator.speed = 1f;
+
+        transform.position = _batterboxPos;
+        transform.eulerAngles = _initialRote;
+
+        ResetToIdle(playIdleState: true);
+
+        if (_enableDebugLogs)
+            Debug.Log($"[BattingAnimation] OnAtBatReset (seq={_activeSequenceId})");
+    }
+
+    // アニメーションイベントから呼ばれる：バッターがボックスに入り切った合図
     public void BatterReady()
     {
-        Debug.Log("[BattingAnimation] バッター準備完了通知");
+        if (_enableDebugLogs)
+            Debug.Log("[BattingAnimation] バッター準備完了通知");
+
         if (_onBatterReadyForPitchEvent != null)
         {
             _batterboxPos = transform.position;
@@ -131,26 +165,24 @@ public class BattingAnimationController : MonoBehaviour, IInitializable
         }
     }
 
-    /// <summary>
-    /// ボールリリース時（PitchBallReleaseEventから呼ばれる）
-    /// </summary>
+    // PitchBallReleaseEventから呼ばれる
     private void OnBallReleased(PitchBallMove ball)
     {
         if (_currentState != BattingState.Idle)
         {
             if (_enableDebugLogs)
-                Debug.LogWarning("[BattingAnimation] Idle状態以外でボールがリリースされました");
+                Debug.LogWarning($"[BattingAnimation] Idle以外でボールがリリースされました state={_currentState}");
             return;
         }
 
-        // 打席開始としてシーケンス更新
         _sequenceId++;
         _activeSequenceId = _sequenceId;
 
         if (_enableDebugLogs)
             Debug.Log($"[BattingAnimation] ボールリリース検知 (seq={_activeSequenceId}) → Preparation開始");
 
-        CancelResultPlayback();
+        // 念のため、前回の残りを完全消去してから始める
+        ResetToIdle(playIdleState: false);
 
         _currentState = BattingState.Preparing;
         _hasJudged = false;
@@ -158,48 +190,33 @@ public class BattingAnimationController : MonoBehaviour, IInitializable
         _isPreparationPaused = false;
 
         _animator.speed = 1f;
-
-        // 可能なら初期化（Controller構成によっては有効）
-        _animator.ResetTrigger(_preparationTrigger);
         _animator.SetInteger(_resultTypeParameter, -1);
 
+        // Triggerは「前回の残り」を消してからセットする
+        _animator.ResetTrigger(_preparationTrigger);
         _animator.SetTrigger(_preparationTrigger);
 
         _ikController?.OnPreparationStarted();
     }
 
-    /// <summary>
-    /// 準備完了（Animation Eventから呼ばれる）
-    /// </summary>
+    // Animation Event：準備完了
     public void OnPreparationComplete()
     {
         if (_currentState != BattingState.Preparing)
             return;
 
         if (_isPreparationPaused)
-        {
-            if (_enableDebugLogs)
-                Debug.LogWarning("[BattingAnimation] OnPreparationComplete: 既に停止済み");
             return;
-        }
 
         if (_enableDebugLogs)
-            Debug.Log($"[BattingAnimation] 準備完了 (seq={_activeSequenceId}) → アニメーション一時停止");
+            Debug.Log($"[BattingAnimation] 準備完了 (seq={_activeSequenceId}) → 一時停止");
 
-        // 注意: Animator.speed=0は全レイヤー停止になる
-        // 演出拡張が増える場合は、待機ステート/ループ区間で止める設計も検討
         _animator.speed = 0f;
         _isPreparationPaused = true;
 
         _ikController?.OnPreparationCompleted();
-
-        if (_enableDebugLogs)
-            Debug.Log("[BattingAnimation] 入力待機中");
     }
 
-    /// <summary>
-    /// スイング入力時（BattingInputEventから呼ばれる）
-    /// </summary>
     private void OnSwingInput()
     {
         if (!CanSwing)
@@ -218,17 +235,15 @@ public class BattingAnimationController : MonoBehaviour, IInitializable
 
         _animator.speed = 1f;
 
+        // ★ここ：スイング開始～インパクトまでIKをON
         _ikController?.OnSwingStarted();
     }
 
-    /// <summary>
-    /// インパクトタイミング（Animation Eventから呼ばれる）
-    /// </summary>
+    // インパクトタイミング（Animation Event）内で呼ぶ
     public void OnImpactTiming()
     {
         if (_currentState != BattingState.Swinging)
         {
-            // ここが複数回呼ばれた場合などの保険
             if (_enableDebugLogs)
                 Debug.LogWarning($"[BattingAnimation] OnImpactTiming: 想定外の状態({_currentState}) (seq={_activeSequenceId})");
             return;
@@ -239,93 +254,71 @@ public class BattingAnimationController : MonoBehaviour, IInitializable
 
         _currentState = BattingState.Impact;
 
+        // ★ここ：インパクトのこのフレームだけ使って直後にOFF
         _ikController?.OnImpactTiming();
 
-        StartBattingCalculate();
+        _ikController?.OnImpactTiming(); // 重複は不要。1回でOK。※ここは消して1回だけにしてね
+        _swingEvent.RaiseEvent();
     }
 
-    /// <summary>
-    /// 打撃判定開始（SwingEventを発火）
-    /// </summary>
-    private void StartBattingCalculate()
-    {
-        if (_swingEvent != null)
-        {
-            if (_enableDebugLogs)
-                Debug.Log($"[BattingAnimation] SwingEvent発火 (seq={_activeSequenceId}) → 判定実行");
-
-            _swingEvent.RaiseEvent();
-        }
-        else
-        {
-            Debug.LogError("[BattingAnimation] SwingEventが設定されていません");
-        }
-    }
 
     /// <summary>
-    /// 打球結果を受け取る（BattingResultEventから呼ばれる）
+    /// BattingResultEventから呼ばれる
     /// </summary>
     private void OnBattingResult(BattingBallResult result)
     {
-        // 状態上、結果待ちでなければ無視
         if (!_isWaitingForResult)
             return;
 
         if (_hasJudged)
-        {
-            if (_enableDebugLogs)
-                Debug.LogWarning($"[BattingAnimation] 既に判定済みです (seq={_activeSequenceId})");
             return;
-        }
 
         _hasJudged = true;
         _isWaitingForResult = false;
-        _currentState = BattingState.FollowThrough;
 
         if (_enableDebugLogs)
-            Debug.Log($"[BattingAnimation] 打球結果 (seq={_activeSequenceId}): {result.BallType}, 距離: {result.Distance:F1}m");
+            Debug.Log($"[BattingAnimation] 打球結果 (seq={_activeSequenceId}): {result.BallType} dist={result.Distance:F1}");
 
+        // 空振りだけは「結果アニメへ切替しない」挙動を維持
+        if (result.BallType == BattingBallType.Miss)
+        {
+            // ここが重要：Missでも内部状態をPreparingに戻して「次の球で正常にPrepareできる」ようにする
+            _currentState = BattingState.Preparing;
+            // そのままアニメーションが進んでいる可能性があるので、確実に「準備待機」に戻すなら再トリガする
+            // ただし挙動を変えたくない場合はコメントアウトしてもOK
+            _animator.speed = 1f;
+            // _animator.ResetTrigger(_preparationTrigger);
+            // _animator.SetTrigger(_preparationTrigger);
+            return;
+        }
+
+        _currentState = BattingState.FollowThrough;
         SwitchToResultAnimation(result.BallType);
 
         _ikController?.OnImpactCompleted(result.BallType);
     }
 
-    /// <summary>
-    /// 結果アニメーションに切り替え
-    /// </summary>
+    // 結果アニメーションに切り替え（途中再生 + 一時停止 + 再開）
     private void SwitchToResultAnimation(BattingBallType ballType)
     {
-        // 先にパラメータを反映（Controller側の遷移で上書きされる事故を減らす）
         _animator.SetInteger(_resultTypeParameter, (int)ballType);
-
-        if (ballType == BattingBallType.Miss)
-        {
-            if (_enableDebugLogs)
-                Debug.Log($"[BattingAnimation] 空振り (seq={_activeSequenceId}) → Preparation続行");
-
-            // 何もしない（既にPreparationアニメーション再生中）
-            return;
-        }
 
         string stateName = GetResultStateName(ballType);
 
-        if (_enableDebugLogs)
-            Debug.Log($"[BattingAnimation] {ballType} (seq={_activeSequenceId}) → {stateName} を途中から再生");
-
-        // 前回の結果再生が残っていたら止める
         CancelResultPlayback();
         _resultPlaybackCts = new CancellationTokenSource();
 
-        // Disable/Destroyで止めたいので破棄トークンとリンク
-        CancellationToken linkedToken = CancellationTokenSource
-            .CreateLinkedTokenSource(_resultPlaybackCts.Token, this.GetCancellationTokenOnDestroy())
-            .Token;
-
-        PlayResultAnimationWithPauseAsync(stateName, _resultStartNormalizedTime, _resultAnimationPauseTime, linkedToken).Forget();
+        // linked CTSはDisposeしないと漏れるので、このメソッド内で作ってfinallyで破棄する
+        PlayResultAnimationWithPauseAsync(
+            stateName,
+            _resultStartNormalizedTime,
+            _resultAnimationPauseTime,
+            _resultPlaybackCts.Token
+        ).Forget();
     }
 
     /// <summary>
-    /// UniTask版：結果アニメーションを一時停止してから再生
+    /// 結果アニメーションを途中再生し、一時停止してから再開する
     /// </summary>
     private async UniTask PlayResultAnimationWithPauseAsync(
         string stateName,
@@ -333,39 +326,46 @@ public class BattingAnimationController : MonoBehaviour, IInitializable
         float pauseSeconds,
         CancellationToken ct)
     {
-        if (ct.IsCancellationRequested)
-            return;
+        // Destroy/Disableで止めたい
+        using (var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, this.GetCancellationTokenOnDestroy()))
+        {
+            var token = linked.Token;
 
-        _animator.Play(stateName, 0, normalizedTime);
+            if (token.IsCancellationRequested)
+                return;
 
-        // Play直後は反映が次フレームになることがあるため1フレーム待つ
-        await UniTask.Yield(PlayerLoopTiming.Update, ct);
+            _animator.speed = 1f;
+            _animator.Play(stateName, 0, normalizedTime);
 
-        if (ct.IsCancellationRequested)
-            return;
+            await UniTask.Yield(PlayerLoopTiming.Update, token);
 
-        _animator.speed = 0f;
+            if (token.IsCancellationRequested)
+                return;
 
-        if (_enableDebugLogs)
-            Debug.Log($"[BattingAnimation] {stateName} 一時停止（normalized: {normalizedTime:F3}）");
+            _animator.speed = 0f;
 
-        await UniTask.Delay(TimeSpan.FromSeconds(pauseSeconds), cancellationToken: ct);
+            if (_enableDebugLogs)
+                Debug.Log($"[BattingAnimation] {stateName} pause (normalized={normalizedTime:F3})");
 
-        if (ct.IsCancellationRequested)
-            return;
+            await UniTask.Delay(TimeSpan.FromSeconds(pauseSeconds), cancellationToken: token);
 
-        _animator.speed = 1f;
+            if (token.IsCancellationRequested)
+                return;
 
-        if (_enableDebugLogs)
-            Debug.Log($"[BattingAnimation] {stateName} 再生開始");
+            _animator.speed = 1f;
+
+            if (_enableDebugLogs)
+                Debug.Log($"[BattingAnimation] {stateName} resume");
+        }
     }
 
+    /// <summary>
+    /// 打球タイプに応じた結果アニメーションの状態名を取得
+    /// </summary>
     private string GetResultStateName(BattingBallType ballType)
     {
         switch (ballType)
         {
-            case BattingBallType.Miss:
-                return _preparationStateName;
             case BattingBallType.Foul:
                 return _foulStateName;
             case BattingBallType.GroundBall:
@@ -375,47 +375,26 @@ public class BattingAnimationController : MonoBehaviour, IInitializable
             case BattingBallType.HomeRun:
                 return _homeRunStateName;
             default:
-                Debug.LogError($"[BattingAnimation] 未対応の結果タイプ: {ballType}");
                 return _preparationStateName;
         }
     }
 
-    /// <summary>
-    /// アニメーション完了（Animation Eventから呼ばれる）
-    /// </summary>
-    public void OnAnimationComplete()
-    {
-        if (_enableDebugLogs)
-            Debug.Log($"[BattingAnimation] アニメーション完了 (seq={_activeSequenceId}) → Idleに戻る");
+    public bool IsSwinging() => _currentState == BattingState.Swinging || _currentState == BattingState.Impact;
+    public bool IsPreparing() => _currentState == BattingState.Preparing;
 
-        CancelResultPlayback();
-
-        _currentState = BattingState.Idle;
-        _hasJudged = false;
-        _isWaitingForResult = false;
-        _isPreparationPaused = false;
-
-        _animator.speed = 1f;
-        _animator.SetInteger(_resultTypeParameter, -1);
-
-        _ikController?.OnAnimationCompleted();
-    }
-
-    public bool IsSwinging()
-    {
-        return _currentState == BattingState.Swinging || _currentState == BattingState.Impact;
-    }
-
-    public bool IsPreparing()
-    {
-        return _currentState == BattingState.Preparing;
-    }
-
-    public void OnInitialized()
+    public void OnInitialized(DefenseSituation situation)
     {
         transform.position = _initialPos;
         transform.eulerAngles = _initialRote;
-        _animator.Play("BatterReady");
+
+        ResetToIdle(playIdleState: true);
+
+        _animator.Rebind();
+        _animator.Update(0f);
+
+        // 既存挙動維持：BatterReadyを再生
+        _animator.speed = 1f;
+        _animator.Play("BatterReady", 0, 0f);
     }
 }
 
