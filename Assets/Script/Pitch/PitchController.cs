@@ -25,9 +25,10 @@ public class PitchController : MonoBehaviour, IInitializable
     [SerializeField] private bool _enableDebugLogs = false;
 
     [Header("イベント")]
-    [SerializeField] private PitchBallReleaseEvent _ballReleaseEvent;
-    [SerializeField] private BallSpawnedEvent _ballSpawnedEvent;
-    [SerializeField] private StartPitchEvent _startPitchEvent;
+    [SerializeField] private OnPitchBallReleaseEvent _ballReleaseEvent;
+    [SerializeField] private OnBallSpawnedEvent _ballSpawnedEvent;
+    [SerializeField] private OnStartPitchEvent _startPitchEvent;
+    [SerializeField] private OnBallReachedTargetEvent _ballReachedTargetEvent;
 
     private PitchBallMove _ball;
     private List<Vector3> _currentTrajectory;
@@ -38,6 +39,8 @@ public class PitchController : MonoBehaviour, IInitializable
     {
         if (_startPitchEvent != null) _startPitchEvent.RegisterListener(StartPitch);
         else Debug.LogWarning("[PitchController] StartPitchEventが設定されていません");
+        if (_ballReachedTargetEvent != null) _ballReachedTargetEvent.RegisterListener(OnBallReachedTarget);
+        else Debug.LogWarning("[PitchController] BallReachedTargetEventが設定されていません");
 
     }
 
@@ -68,7 +71,7 @@ public class PitchController : MonoBehaviour, IInitializable
     /// <summary>
     /// 初期化処理
     /// </summary>
-    public void OnInitialized()
+    public void OnInitialized(DefenseSituation situation)
     {
         _isPitching = false;
 
@@ -100,19 +103,11 @@ public class PitchController : MonoBehaviour, IInitializable
 
     public void StartPitch()
     {
-        if (_isPitching)
-        {
-            Debug.LogWarning("既に投球中です");
-            return;
-        }
-
         if (_releasePoint == null || _targetPoint == null)
         {
             Debug.LogError("ReleasePointまたはTargetPointが設定されていません");
             return;
         }
-
-        _isPitching = true;
 
         if (_enableDebugLogs)
         {
@@ -144,6 +139,7 @@ public class PitchController : MonoBehaviour, IInitializable
     {
         int pitchIndex = Random.Range(0, _availablePresets.Count);
         ChangePitchPreset(pitchIndex);
+        _ball.transform.position = _releasePoint.position;
 
         if (_enableDebugLogs)
         {
@@ -257,8 +253,8 @@ public class PitchController : MonoBehaviour, IInitializable
     private void OnBallReachedTarget(PitchBallMove ball)
     {
         _isPitching = false;
-
-        HideBallAfterDelayAsync(1.0f).Forget();
+        Debug.Log($"[PitchController] ボールがターゲットに到達しました: {_isPitching}");
+        //HideBallAfterDelayAsync(1.0f).Forget();
     }
 
     /// <summary>
