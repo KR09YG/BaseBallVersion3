@@ -2,9 +2,9 @@
 
 public class BattingSystem : MonoBehaviour
 {
-    [SerializeField] private BattingInputEvent _inputEvent;
-    [SerializeField] private SwingEvent _swingEvent;
-    [SerializeField] private PitchBallReleaseEvent _releseEvent;
+    [SerializeField] private OnBattingInputEvent _inputEvent;
+    [SerializeField] private OnSwingEvent _swingEvent;
+    [SerializeField] private OnPitchBallReleaseEvent _releseEvent;
 
     private bool _canSwing = true;
     private bool _isSwinging = false;

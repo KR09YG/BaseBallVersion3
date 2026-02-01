@@ -102,9 +102,9 @@ public class BattingCalculator : MonoBehaviour
     [SerializeField] private BounceSettings _bounceSettings;
 
     [Header("イベント")]
-    [SerializeField] private BattingHitEvent _hitEvent;
-    [SerializeField] private BattingBallTrajectoryEvent _trajectoryEvent;
-    [SerializeField] private BattingResultEvent _battedBallResultEvent;
+    [SerializeField] private OnBattingHitEvent _hitEvent;
+    [SerializeField] private OnBattingBallTrajectoryEvent _trajectoryEvent;
+    [SerializeField] private OnBattingResultEvent _battedBallResultEvent;
 
     [Header("デバッグ")]
     [SerializeField] private bool _enableDebugLogs = true;
@@ -184,7 +184,7 @@ public class BattingCalculator : MonoBehaviour
             return Vector3.zero;
         }
 
-        float strikeZoneZ = _strikeZone.Center.z;
+        float strikeZoneZ = _strikeZone.CenterZ;
         Vector3 ballPosition = BallPhysicsCalculator.FindPointAtZ(trajectory, strikeZoneZ);
 
         if (_enableDebugLogs)
@@ -341,7 +341,7 @@ public class BattingCalculator : MonoBehaviour
     private float CalculateSwingTimingSimple(PitchBallMove ball)
     {
         Vector3 ballPosition = ball.transform.position;
-        float strikeZoneZ = _strikeZone.Center.z;
+        float strikeZoneZ = _strikeZone.CenterZ;
 
         float distanceToZone = ballPosition.z - strikeZoneZ;
 
@@ -370,7 +370,7 @@ public class BattingCalculator : MonoBehaviour
     private Vector3 GetPitchVelocity(PitchBallMove ball, Vector3 ballPosition)
     {
         List<Vector3> trajectory = ball.Trajectory;
-        float strikeZoneZ = _strikeZone.Center.z;
+        float strikeZoneZ = _strikeZone.CenterZ;
 
         for (int i = 0; i < trajectory.Count - 1; i++)
         {
@@ -767,17 +767,5 @@ public class BattingCalculator : MonoBehaviour
         {
             Debug.LogError("[BattingCalculator] BattingResultEventが設定されていません");
         }
-    }
-
-    private void OnDrawGizmos()
-    {
-        if (_cursor == null || _strikeZone == null || _parameters == null) return;
-
-        Gizmos.color = Color.green;
-        Vector3 cursorPos = Application.isPlaying ? _cursor.CurrentPos : _strikeZone.Center;
-        Gizmos.DrawWireSphere(cursorPos, _parameters.maxImpactDistance);
-
-        Gizmos.color = Color.yellow;
-        Gizmos.DrawWireSphere(cursorPos, _parameters.sweetSpotRadius);
     }
 }
