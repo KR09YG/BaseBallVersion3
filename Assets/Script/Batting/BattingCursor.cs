@@ -1,9 +1,11 @@
+using TMPro.EditorUtilities;
 using UnityEngine;
 
-public class BattingCursor : MonoBehaviour
+public class BattingCursor : MonoBehaviour, IInitializable
 {
     [SerializeField] private GameObject _strikeZoon;
     [SerializeField] private GameObject _battingCursor;
+    [SerializeField] private MeshRenderer _cursorRenderer;
     [SerializeField] private float _moveSpeed = 5f;
     [SerializeField] private float _moveRange = 0.5f;
     private Collider _strikeZoneCollider;
@@ -65,5 +67,17 @@ public class BattingCursor : MonoBehaviour
         // マウスカーソルを表示する
         Cursor.visible = true;
         _isInputActive = false;
+    }
+
+    public void OnInitialized(DefenseSituation situation)
+    {
+        _cursorRenderer.enabled = false;
+    }
+
+    public void OnSetBatter()
+    {
+        _cursorRenderer.enabled = true;
+        _currentPos = _strikeZoneCollider.bounds.center;
+        _battingCursor.transform.position = _currentPos;
     }
 }
