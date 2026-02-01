@@ -15,11 +15,11 @@ public readonly struct RunnerETA
     }
 }
 
-public class RunnerManager : MonoBehaviour , IRunnerRunStartListener,IInitializable
+public class RunnerManager : MonoBehaviour, IRunnerRunStartListener, IInitializable
 {
     [SerializeField] private BaseManager _baseManager;
-
     [SerializeField] private OnBattingResultEvent _resultEvent;
+    [SerializeField] private OnAtBatResetEvent _atBatResetEvent;
 
     [Header("Runner refs (optional)")]
     [SerializeField] private Runner _batter;
@@ -28,14 +28,28 @@ public class RunnerManager : MonoBehaviour , IRunnerRunStartListener,IInitializa
     [SerializeField] private Runner _thirdRunner;
 
     private readonly Dictionary<RunnerType, Runner> _runners = new();
-    private List<Runner> _activeRunners = new();
+    private readonly List<Runner> _activeBaseRunners = new(); // 塁上走者のみ
+
+    // 打席ごとにリセットする
+    private bool _batterStartedThisPlay;
+
+    private DefenseSituation _currentSituation;
 
     private void Awake()
     {
         if (_resultEvent != null) _resultEvent.RegisterListener(OnBattingResult);
         else Debug.LogError("[RunnerManager] BattingResultEventが設定されていません！");
 
-        // 必ず4人分を用意（参照があれば使い、なければ生成）
+        if (_atBatResetEvent != null)
+        {
+            _atBatResetEvent.RegisterListener(OnAtBatReset);
+        }
+        else
+        {
+            Debug.LogError("[RunnerManager] AtBatResetEventが設定されていません！");
+        }
+
+        EnsureRunnerExists(RunnerType.Batter, _batter, "Runner_Batter");
         EnsureRunnerExists(RunnerType.First, _firstRunner, "Runner_First");
         EnsureRunnerExists(RunnerType.Second, _secondRunner, "Runner_Second");
         EnsureRunnerExists(RunnerType.Third, _thirdRunner, "Runner_Third");
@@ -43,10 +57,8 @@ public class RunnerManager : MonoBehaviour , IRunnerRunStartListener,IInitializa
 
     private void OnDestroy()
     {
-        if (_resultEvent != null)
-        {
-            _resultEvent.UnregisterListener(OnBattingResult);
-        }
+        _resultEvent?.UnregisterListener(OnBattingResult);
+        _atBatResetEvent?.UnregisterListener(OnAtBatReset);
     }
 
     private void EnsureRunnerExists(RunnerType type, Runner provided, string defaultName)
@@ -64,9 +76,6 @@ public class RunnerManager : MonoBehaviour , IRunnerRunStartListener,IInitializa
         _runners.Add(type, runner);
     }
 
-    /// <summary>
-    /// 現在の DefenseSituation に合わせて走者を有効化する
-    /// </summary>
     public void OnInitialized(DefenseSituation situation)
     {
         if (situation == null)
@@ -74,20 +83,29 @@ public class RunnerManager : MonoBehaviour , IRunnerRunStartListener,IInitializa
             Debug.LogError("Cannot initialize runners: DefenseSituation is null.");
             return;
         }
-        _activeRunners.Clear();
-        // 塁上走者は situation に応じて有効化
-        SetRunnerActive(RunnerType.First, situation.OnFirstBase);
-        SetRunnerActive(RunnerType.Second, situation.OnSecondBase);
-        SetRunnerActive(RunnerType.Third, situation.OnThirdBase);
 
-        _runners[RunnerType.First].SetCurrentBase(_baseManager.GetBasePosition(BaseId.First), BaseId.First);
-        _runners[RunnerType.Second].SetCurrentBase(_baseManager.GetBasePosition(BaseId.Second), BaseId.Second);
-        _runners[RunnerType.Third].SetCurrentBase(_baseManager.GetBasePosition(BaseId.Third), BaseId.Third);
+        _currentSituation = situation;
+        _batterStartedThisPlay = false;
 
-        Debug.Log($"[RunnerManager] Init: 1B={situation.OnFirstBase}, 2B={situation.OnSecondBase}, 3B={situation.OnThirdBase}, Outs={situation.OutCount}");
+        _activeBaseRunners.Clear();
+
+        // 塁上走者のみ有効化（バッターはここでは塁上にいない想定）
+        SetBaseRunnerActive(RunnerType.First, situation.OnFirstBase, BaseId.First);
+        SetBaseRunnerActive(RunnerType.Second, situation.OnSecondBase, BaseId.Second);
+        SetBaseRunnerActive(RunnerType.Third, situation.OnThirdBase, BaseId.Third);
+
+        // バッターはホーム付近に待機させたいならここで
+        // var batterRunner = _runners[RunnerType.Batter];
+        // batterRunner.SetCurrentBase(_baseManager.GetBasePosition(BaseId.Home), BaseId.Home);
+        // batterRunner.SetActive(true);
     }
 
-    private void SetRunnerActive(RunnerType type, bool active)
+    private void OnAtBatReset()
+    {
+        OnInitialized(_currentSituation);
+    }
+
+    private void SetBaseRunnerActive(RunnerType type, bool active, BaseId baseId)
     {
         if (!_runners.TryGetValue(type, out var runner) || runner == null)
         {
@@ -96,23 +114,67 @@ public class RunnerManager : MonoBehaviour , IRunnerRunStartListener,IInitializa
         }
 
         runner.SetActive(active);
-        if (active) _activeRunners.Add(runner);
+
+        if (active)
+        {
+            runner.SetCurrentBase(_baseManager.GetBasePosition(baseId), baseId);
+            _activeBaseRunners.Add(runner);
+        }
     }
 
     private void OnBattingResult(BattingBallResult result)
     {
-        if (!result.IsFoul && result.IsHit)
+        // ファール / ミスはインプレー扱いにしない
+        if (result.IsFoul) return;
+        if (result.BallType == BattingBallType.Miss) return;
+
+        // 1) 事前判定しない方針：インプレーになったらバッターだけは必ず走る（フライでも走る）
+        StartBatterRunToFirstIfNeeded();
+
+        // 2) 塁上走者は「ヒット確定」のときだけ進塁
+        if (result.IsHit)
         {
-            // 打球が有効なヒットの場合、全走者を次の塁へ進める
-            foreach (var runner in _activeRunners)
+            foreach (var runner in _activeBaseRunners)
             {
-                Action action = () =>
-                {
-                    Debug.Log($"[RunnerManager] Runner {runner.name} reached base {(BaseId)runner.CurrentBase + 1}");
-                };
-                Vector3 nextBase = _baseManager.GetBasePosition((BaseId)runner.CurrentBase + 1);
-                runner.StartRunToNextBase(nextBase, (BaseId)runner.CurrentBase + 1, action);
+                var nextBase = (BaseId)runner.CurrentBase + 1;
+                if (nextBase > BaseId.Home) continue;
+
+                Vector3 nextBasePos = _baseManager.GetBasePosition(nextBase);
+                runner.StartRunToNextBase(nextBasePos, nextBase, null);
             }
+        }
+    }
+
+    private void StartBatterRunToFirstIfNeeded()
+    {
+        if (_batterStartedThisPlay) return;
+
+        if (!_runners.TryGetValue(RunnerType.Batter, out var batter) || batter == null)
+        {
+            Debug.LogError("[RunnerManager] Batter runner not found.");
+            return;
+        }
+
+        _batterStartedThisPlay = true;
+
+        batter.SetActive(true);
+        _activeBaseRunners.Add(batter);
+
+        Vector3 firstPos = _baseManager.GetBasePosition(BaseId.First);
+        batter.StartRunToNextBase(firstPos, BaseId.First, () =>
+        {
+            Debug.Log("[RunnerManager] Batter reached first base.");
+        });
+    }
+
+    // もし別イベントから「バッター走り開始」を通知する場合は、ここはバッター専用にする
+    public void OnRunnerStartRunning(Runner runner)
+    {
+        // 以前のコードは “通知が来たら強制で一塁へ” だったので、
+        // ここはバッター専用の入口として扱うのが安全
+        if (runner == _runners[RunnerType.Batter])
+        {
+            StartBatterRunToFirstIfNeeded();
         }
     }
 
@@ -121,13 +183,18 @@ public class RunnerManager : MonoBehaviour , IRunnerRunStartListener,IInitializa
     /// </summary>
     public int GetAllRunningETAs(List<RunnerETA> buffer, bool sortByRemaining = true)
     {
+        if (buffer == null) return 0;
+
         buffer.Clear();
-        Debug.Log("[RunnerManager] Getting all running ETAs:");
-        foreach (var r in _activeRunners)
+
+        // _activeRunners に「現在有効な走者」が入っている前提
+        for (int i = 0; i < _activeBaseRunners.Count; i++)
         {
+            var r = _activeBaseRunners[i];
+            if (r == null) continue;
             if (!r.IsRunning) continue;
 
-            buffer.Add(new RunnerETA(r, r.TargetBase, r.RemainingTimeToTarget));Debug.Log($"[RunnerManager] Runner {r.name} TargetBase: {r.TargetBase}, RemainingTime: {r.RemainingTimeToTarget:F2} sec");
+            buffer.Add(new RunnerETA(r, r.TargetBase, r.RemainingTimeToTarget));
         }
 
         if (sortByRemaining)
@@ -137,17 +204,4 @@ public class RunnerManager : MonoBehaviour , IRunnerRunStartListener,IInitializa
     }
 
     public Runner GetRunner(RunnerType type) => _runners[type];
-
-    public void OnRunnerStartRunning(Runner runner)
-    {
-        if (!_activeRunners.Contains(runner))
-        {
-            _activeRunners.Add(runner);
-        }
-        
-        runner.StartRunToNextBase(_baseManager.GetBasePosition(BaseId.First), BaseId.First, () =>
-        {
-            Debug.Log($"[RunnerManager] Batter reached first base.");
-        });
-    }
 }

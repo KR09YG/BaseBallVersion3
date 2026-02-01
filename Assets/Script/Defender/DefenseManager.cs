@@ -22,14 +22,12 @@ public class DefenseManager : MonoBehaviour, IInitializable
     private Dictionary<PositionType, FielderController> _byPosition;
     private Dictionary<FielderController, Vector3> _initialPositions = new Dictionary<FielderController, Vector3>();
 
-    [Header("Hit Events")]
     [SerializeField] private OnBattingResultEvent _battingResultEvent;
     [SerializeField] private OnBattingBallTrajectoryEvent _battingBallTrajectoryEvent;
     [SerializeField] private OnDefensePlayJudged _defensePlayJudgedEvent;
-
-    [Header("Catch & Throw Events")]
     [SerializeField] private OnDefenderCatchEvent _defenderCatchEvent;
     [SerializeField] private OnDefensePlayFinishedEvent _defenderFinishedEvent;
+    [SerializeField] private OnAtBatResetEvent _atBatResetEvent;
 
     [Header("World refs")]
     [SerializeField] private BaseManager _baseManager;
@@ -69,6 +67,9 @@ public class DefenseManager : MonoBehaviour, IInitializable
         if (_ballSpawnedEvent != null) _ballSpawnedEvent.RegisterListener(SetBall);
         else Debug.LogError("BallSpawnedEvent reference is not set in DefenseManager.");
 
+        if (_atBatResetEvent != null) _atBatResetEvent.RegisterListener(OnAtBatReset);
+        else Debug.LogError("AtBatResetEvent reference is not set in DefenseManager.");
+
         _byPosition ??= new Dictionary<PositionType, FielderController>();
 
         foreach (var f in _fielders)
@@ -107,6 +108,11 @@ public class DefenseManager : MonoBehaviour, IInitializable
                 fielder.transform.position = initPos;
             }
         }
+    }
+
+    public void OnAtBatReset()
+    {
+        OnInitialized(_situation);
     }
 
     private void OnDisable()

@@ -1,7 +1,7 @@
 ﻿using UnityEngine;
 using Cysharp.Threading.Tasks;
 using System.Threading;
-public class StrikeZoneUI : MonoBehaviour
+public class StrikeZoneUI : MonoBehaviour, IInitializable
 {
     [SerializeField] private OnPitchBallReleaseEvent _pitchBallReleaseEvent;
     [SerializeField] private OnBallReachedTargetEvent _ballReachedTargetEvent;
@@ -142,5 +142,15 @@ public class StrikeZoneUI : MonoBehaviour
             cancellationToken: _cts.Token);
 
         _marker.SetActive(false);
+    }
+
+    public void OnInitialized(DefenseSituation situation)
+    {
+        _lineRenderer.enabled = false;
+    }
+
+    public void OnBatterSetCompleted()
+    {
+        _lineRenderer.enabled = true;
     }
 }

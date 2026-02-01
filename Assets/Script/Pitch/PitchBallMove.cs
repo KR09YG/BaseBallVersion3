@@ -29,6 +29,9 @@ public class PitchBallMove : BallMoveTrajectory
 
     public void Initialize(List<Vector3> trajectory, PitchPreset preset)
     {
+        _elapsedTime = 0f;
+        _trajectoryProgress = 0f; 
+        _isMoving = false;
         _trajectory = trajectory;
         _preset = preset;
         transform.position = trajectory[0];
