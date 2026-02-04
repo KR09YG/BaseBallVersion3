@@ -49,6 +49,9 @@ public class BattingBallMove : BallMoveTrajectory
     protected override void Update()
     {
         base.Update();
+
+        if (!_isMoving) return;
+
         if (_result.LandingPosition == transform.position)
         {
             if (!_hasLanded)
@@ -95,7 +98,7 @@ public class BattingBallMove : BallMoveTrajectory
             return;
         }
 
-        if (_result.IsFoul)
+        if (_result.BallType == BattingBallType.Foul)
         {
             _ = WaitFoulBallAsync();
         }
@@ -120,7 +123,7 @@ public class BattingBallMove : BallMoveTrajectory
     /// <summary>
     /// 守備側に捕球された
     /// </summary>
-    private void CaughtByFielder(FielderController fielder, bool isFly)
+    private void CaughtByFielder(FielderController fielder)
     {
         if (_hasLanded) return;
 

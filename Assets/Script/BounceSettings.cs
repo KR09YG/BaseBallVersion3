@@ -39,4 +39,6 @@ public class BounceSettings : ScriptableObject
     [Tooltip("’n–Ê‚Å“]‚ª‚éê‡‚ÌŒ¸‘¬—¦")]
     [Range(0f, 1f)]
     public float rollingDeceleration = 0.95f;
+
+    public float ballRadius = 0.00366f;
 }

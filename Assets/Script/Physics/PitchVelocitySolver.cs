@@ -68,12 +68,9 @@ internal static class PitchVelocitySolver
                 bestVelocity = currentVelocity;
             }
 
-            Debug.Log($"[最適化] 反復 {i + 1}: 誤差 XY={errorXY * 100f:F2}cm, Z={errorZ * 100f:F2}cm, 総合={totalError * 100f:F2}");
-
             if (errorZ < BallPhysicsConstants.POSITION_TOLERANCE * BallPhysicsConstants.Z_TOLERANCE_FACTOR &&
                 errorXY < BallPhysicsConstants.POSITION_TOLERANCE)
             {
-                Debug.Log($"[最適化] 収束成功！反復: {i + 1}回");
                 return currentVelocity;
             }
 
@@ -98,11 +95,8 @@ internal static class PitchVelocitySolver
                 currentVelocity = currentVelocity.normalized *
                                   Mathf.Lerp(currentSpeed, desiredSpeed, speedAdjustmentFactor);
             }
-
-            Debug.Log($"[最適化] 調整後の初速: {currentVelocity}, 速度: {currentVelocity.magnitude:F2} m/s");
         }
 
-        Debug.Log($"[最適化] 最大反復到達。最良誤差: {bestError * 100f:F2}cm");
         return bestVelocity;
     }
 
@@ -127,8 +121,6 @@ internal static class PitchVelocitySolver
 
         float estimatedTime = (horizontalDist / desiredSpeed) * dragFactor;
 
-        Debug.Log($"[初速推定] 距離: {horizontalDist:F2}m, 推定時間: {estimatedTime:F3}s");
-
         float gravity = Mathf.Abs(Physics.gravity.y);
         float gravityDrop = BallPhysicsConstants.GRAVITY_HALF * gravity * estimatedTime * estimatedTime;
 
@@ -141,8 +133,6 @@ internal static class PitchVelocitySolver
                            * BallPhysicsConstants.CROSS_SECTION * liftCoefficient / BallPhysicsConstants.BALL_MASS;
         float magnusDisplacement = BallPhysicsConstants.GRAVITY_HALF * magnusAccel * estimatedTime * estimatedTime;
 
-        Debug.Log($"[初速推定] 重力落下: {gravityDrop:F3}m, マグヌス変位: {magnusDisplacement:F3}m");
-
         float zSpeed = displacement.z / estimatedTime;
         float xSpeed = displacement.x / estimatedTime;
         float verticalSpeed = verticalDist / estimatedTime + gravity * estimatedTime * BallPhysicsConstants.GRAVITY_HALF;
@@ -151,8 +141,6 @@ internal static class PitchVelocitySolver
         verticalSpeed -= magnusVerticalEffect * BallPhysicsConstants.MAGNUS_VERTICAL_CORRECTION_FACTOR;
 
         Vector3 initialVelocity = new Vector3(xSpeed, verticalSpeed, zSpeed);
-
-        Debug.Log($"[初速推定] 初速: {initialVelocity}, 速度: {initialVelocity.magnitude:F2} m/s");
 
         return initialVelocity;
     }

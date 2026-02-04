@@ -1,13 +1,24 @@
+ï»¿using NUnit.Framework;
 using System.Collections.Generic;
 using UnityEngine;
+
+/// <summary>
+/// è»Œé“ã‚·ãƒŸãƒ¥ãƒ¬ãƒ¼ã‚·ãƒ§ãƒ³çµæœï¼ˆãƒ¡ã‚¿ãƒ‡ãƒ¼ã‚¿ä»˜ãï¼‰
+/// </summary>
+public struct TrajectoryResult
+{
+    public List<Vector3> Points;
+    public string FirstGroundLayer;
+    public int BounceCount;
+}
 
 internal static class BallTrajectorySimulator
 {
     /// <summary>
-    /// •¨—ƒVƒ~ƒ…ƒŒ[ƒVƒ‡ƒ“i“ˆê”ÅEƒoƒEƒ“ƒh‘Î‰j
-    /// ¦ Net(Layer: Net / MeshCollider)‚É“–‚½‚Á‚½‚ç Bounds–Ê‚Å”½ËienableWallBouncej
+    /// è»Œé“ã‚·ãƒŸãƒ¥ãƒ¬ãƒ¼ã‚·ãƒ§ãƒ³ï¼ˆé€šå¸¸ç‰ˆï¼‰
+    /// ãƒ»Pitchingç”¨ï¼ˆãƒ¬ã‚¤ãƒ¤ãƒ¼æƒ…å ±ä¸è¦ï¼‰
     /// </summary>
-    internal static List<Vector3> SimulateTrajectory(
+    public static List<Vector3> SimulateTrajectory(
         Vector3 startPosition,
         Vector3 initialVelocity,
         Vector3 spinAxisNormalized,
@@ -15,122 +26,347 @@ internal static class BallTrajectorySimulator
         float liftCoefficient,
         BallPhysicsCalculator.SimulationConfig config)
     {
-        List<Vector3> points = new List<Vector3>();
+        List<Vector3> trajectory = new List<Vector3> { startPosition };
+
         Vector3 position = startPosition;
         Vector3 velocity = initialVelocity;
 
-        float angularVelocity = spinRateRPM * BallPhysicsConstants.RPM_TO_RAD_PER_SEC;
-        float currentTime = 0f;
+        float elapsed = 0f;
         int bounceCount = 0;
         bool isRolling = false;
 
-        Vector3 gravityForce = Physics.gravity * BallPhysicsConstants.BALL_MASS;
-        points.Add(position);
-
-        while (currentTime < config.MaxSimulationTime)
+        if (config.DeltaTime <= 0f)
         {
-            // === “]‚ª‚èó‘Ô‚Ìˆ— ===
+            Debug.LogError($"[BallTrajectorySimulator] Invalid DeltaTime: {config.DeltaTime}");
+            return trajectory;
+        }
+
+        while (elapsed < config.MaxSimulationTime)
+        {
+            float prevZ = position.z;
+            Vector3 prevPos = position;
+
+            Vector3 newPos = position;
+            Vector3 newVel = velocity;
+
+            SimulatePhysicsStep(
+                ref newPos,
+                ref newVel,
+                spinAxisNormalized,
+                spinRateRPM,
+                liftCoefficient,
+                config.DeltaTime
+            );
+
+            // ãƒ•ã‚§ãƒ³ã‚¹/ãƒãƒƒãƒˆåå°„
+            if (!isRolling && config.BounceSettings != null)
+            {
+                float restitution = config.BounceSettings.wallRestitution;
+
+                BallCollisions.TryReflectOnFence(
+                    prevPos,
+                    ref newPos,
+                    ref newVel,
+                    config.DeltaTime,
+                    restitution
+                );
+            }
+
+            // åœ°é¢ãƒã‚§ãƒƒã‚¯ï¼ˆãƒ¬ã‚¤ãƒ¤ãƒ¼æƒ…å ±ä¸è¦ï¼‰
+            if (config.BounceSettings != null && newPos.y <= config.BounceSettings.groundLevel)
+            {
+                newPos.y = config.BounceSettings.groundLevel;
+
+                bool shouldRoll = BallCollisions.HandleGroundBounce(
+                    ref newVel,
+                    config.BounceSettings,
+                    bounceCount
+                );
+
+                bounceCount++;
+
+                if (shouldRoll)
+                {
+                    isRolling = true;
+                }
+            }
+
+            position = newPos;
+            velocity = newVel;
+
+            trajectory.Add(position);
+            elapsed += config.DeltaTime;
+
+            // è»¢ãŒã‚Šå‡¦ç†
             if (isRolling && config.BounceSettings != null)
             {
-                position = BallCollisions.SimulateRolling(position, ref velocity, config.BounceSettings, config.DeltaTime);
-                currentTime += config.DeltaTime;
-                points.Add(position);
+                position = BallCollisions.SimulateRolling(
+                    position,
+                    ref velocity,
+                    config.BounceSettings,
+                    config.DeltaTime
+                );
+
+                trajectory[trajectory.Count - 1] = position;
 
                 if (velocity.magnitude < config.BounceSettings.stopVelocityThreshold)
+                {
                     break;
-
-                continue;
-            }
-
-            // === ‹ó’†‚Å‚Ì•¨—ŒvZ ===
-            Vector3 magnusForce = BallAerodynamics.CalculateMagnusForce(velocity, spinAxisNormalized, angularVelocity, liftCoefficient);
-            Vector3 dragForce = BallAerodynamics.CalculateDragForce(velocity);
-            Vector3 totalForce = magnusForce + dragForce + gravityForce;
-            Vector3 acceleration = totalForce / BallPhysicsConstants.BALL_MASS;
-
-            velocity += acceleration * config.DeltaTime;
-            Vector3 nextPosition = position + velocity * config.DeltaTime;
-
-            // === ZÀ•W’â~”»’èi“Š‹…—pj ===
-            if (config.StopAtZ.HasValue && nextPosition.z >= config.StopAtZ.Value && position.z < config.StopAtZ.Value)
-            {
-                float t = (config.StopAtZ.Value - position.z) / (nextPosition.z - position.z);
-                position = Vector3.Lerp(position, nextPosition, t);
-                points.Add(position);
-                Debug.Log($"[ƒVƒ~ƒ…ƒŒ[ƒVƒ‡ƒ“] ZÀ•W“’B: {position.z:F3} >= {config.StopAtZ.Value:F3}");
-                break;
-            }
-
-            // === ’n–ÊƒoƒEƒ“ƒh”»’è ===
-            if (config.BounceSettings != null)
-            {
-                if (nextPosition.y <= config.BounceSettings.groundLevel && position.y > config.BounceSettings.groundLevel)
-                {
-                    float t = (config.BounceSettings.groundLevel - position.y) / (nextPosition.y - position.y);
-                    Vector3 hitPoint = Vector3.Lerp(position, nextPosition, t);
-
-                    bool shouldRoll = BallCollisions.HandleGroundBounce(ref velocity, config.BounceSettings, bounceCount);
-
-                    position = hitPoint;
-                    position.y = config.BounceSettings.groundLevel;
-                    points.Add(position);
-
-                    bounceCount++;
-
-                    if (shouldRoll) isRolling = true;
-
-                    if (bounceCount >= config.BounceSettings.maxBounces)
-                        break;
-
-                    currentTime += config.DeltaTime * t;
-                    continue;
-                }
-
-                // === •ÇƒoƒEƒ“ƒh”»’è ===
-                if (config.BounceSettings.enableWallBounce)
-                {
-                    // 1) NetƒŒƒCƒ„[‚É“–‚½‚Á‚½‚ç bounds–Ê”½Ëi—Dæj
-                    if (!BallCollisions.TryReflectOnNetBoundsPlane(
-                            position,
-                            ref nextPosition,
-                            ref velocity,
-                            config.DeltaTime,
-                            config.BounceSettings.wallRestitution))
-                    {
-                        // 2) “–‚½‚Á‚Ä‚È‚¢ê‡‚Í]—ˆ‚ÌfieldBounds”½ËiŠOü‚È‚Çj
-                        if (BallCollisions.IsOutOfBounds(nextPosition, config.BounceSettings.fieldBounds))
-                        {
-                            BallCollisions.HandleWallBounce(ref nextPosition, ref velocity, config.BounceSettings);
-                        }
-                    }
                 }
             }
 
-            position = nextPosition;
-            currentTime += config.DeltaTime;
-            points.Add(position);
-
-            // === ’n–Ê“’B”»’èiƒoƒEƒ“ƒh–³Œøj ===
-            if (config.BounceSettings == null && position.y < BallPhysicsConstants.GROUND_LEVEL)
+            // StopAtZ
+            if (config.StopAtZ.HasValue)
             {
-                Debug.Log($"[ƒVƒ~ƒ…ƒŒ[ƒVƒ‡ƒ“] ’n–Ê“’B: Y={position.y:F3}");
-                break;
-            }
+                float stopZ = config.StopAtZ.Value;
+                float currZ = position.z;
 
-            // === ƒtƒB[ƒ‹ƒhŠO”»’èiŠOü‚Éo‚½‚ç’â~j ===
-            if (config.BounceSettings != null && config.BounceSettings.enableWallBounce)
-            {
-                if (BallCollisions.IsOutOfBounds(position, config.BounceSettings.fieldBounds))
+                if ((prevZ - stopZ) * (currZ - stopZ) <= 0f)
+                {
                     break;
-            }
-
-            if (points.Count > BallPhysicsConstants.MAX_TRAJECTORY_POINTS)
-            {
-                Debug.LogWarning("[ƒVƒ~ƒ…ƒŒ[ƒVƒ‡ƒ“] ‹O“¹“_‚ªãŒÀ“’B");
-                break;
+                }
             }
         }
 
-        return points;
+        return trajectory;
+    }
+
+    public static TrajectoryResult SimulateTrajectoryWithMetadata(
+    Vector3 startPosition,
+    Vector3 initialVelocity,
+    Vector3 spinAxisNormalized,
+    float spinRateRPM,
+    float liftCoefficient,
+    BallPhysicsCalculator.SimulationConfig config)
+    {
+        List<Vector3> trajectory = new List<Vector3> { startPosition };
+
+        Vector3 position = startPosition;
+        Vector3 velocity = initialVelocity;
+
+        float elapsed = 0f;
+        int bounceCount = 0;
+        bool isRolling = false;
+        string firstGroundLayer = null;
+
+        if (config.DeltaTime <= 0f)
+        {
+            Debug.LogError($"[BallTrajectorySimulator] Invalid DeltaTime: {config.DeltaTime}");
+            return new TrajectoryResult
+            {
+                Points = trajectory,
+                FirstGroundLayer = null,
+                BounceCount = 0
+            };
+        }
+
+        while (elapsed < config.MaxSimulationTime)
+        {
+            float prevZ = position.z;
+            Vector3 prevPos = position;
+
+            Vector3 newPos = position;
+            Vector3 newVel = velocity;
+
+            SimulatePhysicsStep(
+                ref newPos,
+                ref newVel,
+                spinAxisNormalized,
+                spinRateRPM,
+                liftCoefficient,
+                config.DeltaTime
+            );
+
+            // ãƒ•ã‚§ãƒ³ã‚¹/ãƒãƒƒãƒˆåå°„ï¼ˆå…ƒã®SimulateTrajectoryã¨åŒã˜ï¼šcontinueã—ãªã„ï¼‰
+            if (!isRolling && config.BounceSettings != null)
+            {
+                float restitution = config.BounceSettings.wallRestitution;
+
+                BallCollisions.TryReflectOnFence(
+                    prevPos,
+                    ref newPos,
+                    ref newVel,
+                    config.DeltaTime,
+                    restitution
+                );
+            }
+
+            if (config.BounceSettings != null && newPos.y <= config.BounceSettings.groundLevel)
+            {
+                // å…ˆã« groundLevel ã¸å¸ç€ï¼ˆå…ƒã®æŒ™å‹•ç¶­æŒï¼‰
+                newPos.y = config.BounceSettings.groundLevel;
+
+                // æœ€åˆã®æ¥åœ°ãƒ¬ã‚¤ãƒ¤ãƒ¼ã‚’ç¢ºå®šï¼ˆ1å›ã ã‘ï¼‰
+                if (firstGroundLayer == null)
+                {
+                    // åˆ¤å®šã—ãŸã„ä¸­å¿ƒç‚¹ï¼ˆgroundLevelã«å¸ç€ã—ãŸåœ°ç‚¹ï¼‰
+                    Vector3 center = new Vector3(newPos.x, config.BounceSettings.groundLevel, newPos.z);
+
+                    int mask = LayerMask.GetMask("Ground", "HomerunZone");
+                    if (mask == 0) mask = ~0;
+
+                    // 1) ä¸Šâ†’ä¸‹
+                    bool hitOk = Physics.Raycast(
+                        center + Vector3.up * 5f,
+                        Vector3.down,
+                        out RaycastHit hit,
+                        20f,
+                        mask,
+                        QueryTriggerInteraction.Collide);
+
+                    // 2) ä¸‹â†’ä¸Šï¼ˆåŸ‹ã¾ã‚Š/è£é¢/é–‹å§‹ç‚¹å•é¡Œã®æ•‘æ¸ˆï¼‰
+                    if (!hitOk)
+                    {
+                        hitOk = Physics.Raycast(
+                            center + Vector3.down * 5f,
+                            Vector3.up,
+                            out hit,
+                            20f,
+                            mask,
+                            QueryTriggerInteraction.Collide);
+                    }
+
+                    // 3) ãã‚Œã§ã‚‚ãƒ€ãƒ¡ãªã‚‰ OverlapSphere ã§è¿‘å‚ã‚³ãƒ©ã‚¤ãƒ€ãƒ¼ã‚’ç›´æ¥æ‹¾ã†ï¼ˆæœ€çµ‚ä¿é™ºï¼‰
+                    if (!hitOk)
+                    {
+                        // åŠå¾„ã¯ã€Œç¢ºå®Ÿå„ªå…ˆã€ã§å°‘ã—å¤§ãã‚ã€‚çƒã‚¹ã‚±ãƒ¼ãƒ«0.1ãªã‚‰ã¾ãšã“ã‚Œã§æ‹¾ãˆã‚‹
+                        float r = 0.5f;
+
+                        Collider[] cols = Physics.OverlapSphere(
+                            center,
+                            r,
+                            mask,
+                            QueryTriggerInteraction.Collide);
+
+                        if (cols != null && cols.Length > 0)
+                        {
+                            // ä¸€ç•ªè¿‘ã„ã‚³ãƒ©ã‚¤ãƒ€ãƒ¼ã‚’æ¡ç”¨ï¼ˆæƒ³å®šå¤–ãŒæ··ã–ã‚‹å¯èƒ½æ€§ã‚’æ¸›ã‚‰ã™ï¼‰
+                            Collider nearest = cols[0];
+                            float best = (nearest.ClosestPoint(center) - center).sqrMagnitude;
+
+                            for (int i = 1; i < cols.Length; i++)
+                            {
+                                float d = (cols[i].ClosestPoint(center) - center).sqrMagnitude;
+                                if (d < best)
+                                {
+                                    best = d;
+                                    nearest = cols[i];
+                                }
+                            }
+
+                            firstGroundLayer = LayerMask.LayerToName(nearest.gameObject.layer);
+                            Debug.Log($"[FirstGround] OverlapSphere picked layer='{firstGroundLayer}' obj={nearest.name} layerId={nearest.gameObject.layer}");
+                        }
+                        else
+                        {
+                            // ã“ã“ã¾ã§æ¥ã¦0ä»¶ã¯ã€Œãã®åœ°ç‚¹è¿‘å‚ã«ã‚³ãƒ©ã‚¤ãƒ€ãƒ¼ãŒå­˜åœ¨ã—ãªã„ã€ã‹ã€åˆ¥PhysicsSceneãªã©
+                            firstGroundLayer = "Unknown";
+                            Debug.Log("[FirstGround] No collider found by Raycasts and OverlapSphere near landing point.");
+                        }
+                    }
+                    else
+                    {
+                        firstGroundLayer = LayerMask.LayerToName(hit.collider.gameObject.layer);
+                        Debug.Log($"[FirstGround] Ray hit layer='{firstGroundLayer}' obj={hit.collider.name} layerId={hit.collider.gameObject.layer} hitY={hit.point.y:F3}");
+                    }
+                }
+
+
+                // ãƒã‚¦ãƒ³ãƒ‰å‡¦ç†ï¼ˆå…ƒã®SimulateTrajectoryã¨åŒã˜ï¼‰
+                bool shouldRoll = BallCollisions.HandleGroundBounce(
+                    ref newVel,
+                    config.BounceSettings,
+                    bounceCount
+                );
+
+                bounceCount++;
+
+                if (shouldRoll)
+                {
+                    isRolling = true;
+                }
+
+                // HomerunZoneãªã‚‰å³çµ‚äº†ã—ãŸã„ãªã‚‰ã“ã“ï¼ˆä»»æ„ï¼‰
+                if (firstGroundLayer == "HomerunZone")
+                {
+                    position = newPos;
+                    velocity = newVel;
+                    trajectory.Add(position);
+                    break;
+                }
+            }
+
+
+            position = newPos;
+            velocity = newVel;
+
+            trajectory.Add(position);
+            elapsed += config.DeltaTime;
+
+            // è»¢ãŒã‚Šå‡¦ç†ï¼ˆå…ƒã®SimulateTrajectoryã¨åŒã˜ï¼‰
+            if (isRolling && config.BounceSettings != null)
+            {
+                position = BallCollisions.SimulateRolling(
+                    position,
+                    ref velocity,
+                    config.BounceSettings,
+                    config.DeltaTime
+                );
+
+                trajectory[trajectory.Count - 1] = position;
+
+                if (velocity.magnitude < config.BounceSettings.stopVelocityThreshold)
+                {
+                    break;
+                }
+            }
+
+            // StopAtZï¼ˆå…ƒã®SimulateTrajectoryã¨åŒã˜ï¼‰
+            if (config.StopAtZ.HasValue)
+            {
+                float stopZ = config.StopAtZ.Value;
+                float currZ = position.z;
+
+                if ((prevZ - stopZ) * (currZ - stopZ) <= 0f)
+                {
+                    break;
+                }
+            }
+        }
+
+
+        return new TrajectoryResult
+        {
+            Points = trajectory,
+            FirstGroundLayer = firstGroundLayer,
+            BounceCount = bounceCount
+        };
+    }
+
+    /// <summary>
+    /// ç‰©ç†ã‚¹ãƒ†ãƒƒãƒ—è¨ˆç®—ï¼ˆé‡åŠ›ãƒ»æŠ—åŠ›ãƒ»ãƒã‚°ãƒŒã‚¹åŠ›ï¼‰
+    /// </summary>
+    private static void SimulatePhysicsStep(
+        ref Vector3 position,
+        ref Vector3 velocity,
+        Vector3 spinAxisNormalized,
+        float spinRateRPM,
+        float liftCoefficient,
+        float deltaTime)
+    {
+        Vector3 gravity = Physics.gravity;
+        Vector3 dragForce = BallAerodynamics.CalculateDragForce(velocity);
+        Vector3 magnusForce = BallAerodynamics.CalculateMagnusForce(
+            velocity,
+            spinAxisNormalized,
+            spinRateRPM,
+            liftCoefficient
+        );
+
+        const float BALL_MASS_KG = 0.145f;
+        Vector3 acceleration = gravity + (dragForce + magnusForce) / BALL_MASS_KG;
+
+        velocity += acceleration * deltaTime;
+        position += velocity * deltaTime;
     }
 }

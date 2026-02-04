@@ -16,6 +16,7 @@ public static class BallPhysicsCalculator
         public float MaxSimulationTime;
         public float? StopAtZ;
         public BounceSettings BounceSettings;
+        public string GroundLayer;
     }
 
     /// <summary>
@@ -89,43 +90,6 @@ public static class BallPhysicsCalculator
     }
 
     /// <summary>
-    /// 後方互換性のための旧シグネチャ（投球用）
-    /// </summary>
-    public static List<Vector3> SimulateTrajectory(
-        Vector3 startPosition,
-        Vector3 initialVelocity,
-        Vector3 spinAxisNormalized,
-        float spinRateRPM,
-        float liftCoefficient,
-        TrajectorySettings settings)
-    {
-        var config = new SimulationConfig
-        {
-            DeltaTime = settings?.DeltaTime ?? 0.01f,
-            MaxSimulationTime = settings?.MaxSimulationTime ?? 5f,
-            StopAtZ = settings?.StopAtTarget == true ? settings.StopPosition.z : (float?)null,
-            BounceSettings = null
-        };
-
-        return SimulateTrajectory(startPosition, initialVelocity, spinAxisNormalized,
-                                 spinRateRPM, liftCoefficient, config);
-    }
-
-    // === ここから下は「外部から呼ばれてる可能性がある」ので窓口として残す ===
-
-    public static bool HandleGroundBounce(ref Vector3 velocity, BounceSettings settings, int bounceCount)
-        => BallCollisions.HandleGroundBounce(ref velocity, settings, bounceCount);
-
-    public static void HandleWallBounce(ref Vector3 position, ref Vector3 velocity, BounceSettings settings)
-        => BallCollisions.HandleWallBounce(ref position, ref velocity, settings);
-
-    public static Vector3 SimulateRolling(Vector3 position, ref Vector3 velocity, BounceSettings settings, float deltaTime)
-        => BallCollisions.SimulateRolling(position, ref velocity, settings, deltaTime);
-
-    public static bool IsOutOfBounds(Vector3 position, Bounds bounds)
-        => BallCollisions.IsOutOfBounds(position, bounds);
-
-    /// <summary>
     /// 軌道から指定Z座標での通過点を取得
     /// </summary>
     public static Vector3 FindPointAtZ(List<Vector3> trajectory, float targetZ)
@@ -144,5 +108,31 @@ public static class BallPhysicsCalculator
         }
 
         return trajectory.Count > 0 ? trajectory[trajectory.Count - 1] : Vector3.zero;
+    }
+
+    /// <summary>
+    /// 軌道シミュレーション（レイヤー情報付き）
+    /// </summary>
+    public static (List<Vector3> trajectory, string firstGroundLayer) SimulateTrajectoryWithGroundInfo(
+        Vector3 startPosition,
+        Vector3 initialVelocity,
+        Vector3 spinAxisNormalized,
+        float spinRateRPM,
+        float liftCoefficient,
+        SimulationConfig config)
+    {
+        TrajectoryResult result = BallTrajectorySimulator.SimulateTrajectoryWithMetadata(
+            startPosition,
+            initialVelocity,
+            spinAxisNormalized,
+            spinRateRPM,
+            liftCoefficient,
+            config
+        );
+
+        var trajectory = result.Points;
+        var firstGroundLayer = result.FirstGroundLayer;
+
+        return (trajectory, firstGroundLayer);
     }
 }
