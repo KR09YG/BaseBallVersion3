@@ -3,19 +3,34 @@ using UnityEngine;
 
 public static class DefenseThrowDecisionCalculator
 {
-    private const float THROW_SPEED = 30f;
-    private static readonly List<RunnerETA> _etaBuffer = new(4);
+    private static readonly List<RunnerETA> _etaBuffer = new(8);
 
+    // 優先順位（現状維持）
     private static readonly BaseId[] _priority =
     {
         BaseId.Home, BaseId.Third, BaseId.Second, BaseId.First
     };
 
+    /// <summary>
+    /// 送球判断
+    /// </summary>
+    /// <param name="catchFielder">捕球（回収）した野手</param>
+    /// <param name="isFly">フライ捕球なら true</param>
+    /// <param name="fielders">守備辞書</param>
+    /// <param name="baseManager">塁座標</param>
+    /// <param name="situation">状況（アウトカウント等）</param>
+    /// <param name="runnerManager">RunnerETA取得用</param>
+    /// <param name="throwSpeed">送球速度(m/s) ※守備調整値</param>
+    /// <param name="catchTime">捕球完了の相対秒（catchPlan.CatchTime 等）</param>
     public static List<ThrowStep> ThrowDicision(
-        FielderController catchFielder, bool isFly,
+        FielderController catchFielder,
+        bool isFly,
         Dictionary<PositionType, FielderController> fielders,
-        BaseManager baseManager, DefenseSituation situation,
-        RunnerManager runnerManager)
+        BaseManager baseManager,
+        DefenseSituation situation,
+        RunnerManager runnerManager,
+        float throwSpeed,
+        float catchTime)
     {
         if (catchFielder == null || fielders == null || fielders.Count == 0)
         {
@@ -27,31 +42,34 @@ public static class DefenseThrowDecisionCalculator
             Debug.LogError("[Decision] runnerManager is null");
             return null;
         }
-
-        runnerManager.GetAllRunningETAs(_etaBuffer, true);
-
-        foreach (var eta in _etaBuffer)
+        if (baseManager == null)
         {
-            Debug.Log($"[Decision ETA] Runner={eta.Runner.name} Target={eta.TargetBase} ETA={eta.Remaining:F2}s");
+            Debug.LogError("[Decision] baseManager is null");
+            return null;
         }
+
+        // ETA取得
+        _etaBuffer.Clear();
+        runnerManager.GetAllRunningETAs(_etaBuffer, true);
 
         List<ThrowStep> throwSteps = new();
 
-        // 外野：Cutoff → Return（現状維持）
+        // 外野：Cutoff → Pitcher返球（現状維持）
         if (catchFielder.Data.PositionGroupType == PositionGroupType.Outfield)
         {
-            ThrowStep cutoff = CalculateCutoffThrowPlan(catchFielder, fielders);
+            ThrowStep cutoff = CalculateCutoffThrowPlan(catchFielder, fielders, throwSpeed, catchTime);
             throwSteps.Add(cutoff);
 
-            FielderController pitcher = fielders[PositionType.Pitcher];
-            Debug.Assert(pitcher != null, "Pitcher not found.");
-            throwSteps.Add(ThrowToFielder(cutoff.ReceiverFielder, pitcher, ThrowPlan.Return));
+            if (fielders.TryGetValue(PositionType.Pitcher, out var pitcher) && pitcher != null)
+            {
+                throwSteps.Add(ThrowToFielder(cutoff.ReceiverFielder, pitcher, ThrowPlan.Return, throwSpeed, cutoff.ArriveTime));
+            }
             return throwSteps;
         }
 
         // 内野：投げるベースを決める
         throwSteps.Add(DetermineInfieldThrowPlan(
-            catchFielder, fielders, baseManager, isFly, situation, _etaBuffer));
+            catchFielder, fielders, baseManager, isFly, situation, _etaBuffer, throwSpeed, catchTime));
 
         return throwSteps;
     }
@@ -62,35 +80,67 @@ public static class DefenseThrowDecisionCalculator
         BaseManager baseManager,
         bool isFly,
         DefenseSituation situation,
-        List<RunnerETA> etas)
+        List<RunnerETA> etas,
+        float throwSpeed,
+        float catchTime)
     {
         // 内野フライ：投手へ返球（現状維持）
         if (isFly)
         {
-            FielderController pitcher = fielders[PositionType.Pitcher];
-            return ThrowToFielder(catchFielder, pitcher, ThrowPlan.Return);
+            if (fielders.TryGetValue(PositionType.Pitcher, out var pitcher) && pitcher != null)
+                return ThrowToFielder(catchFielder, pitcher, ThrowPlan.Return, throwSpeed, catchTime);
+
+            return FallbackToFirst(catchFielder, fielders, baseManager, throwSpeed, catchTime);
         }
 
         // 2アウト：まず1塁（現状維持）
-        if (situation.OutCount == 2)
+        if (situation != null && situation.OutCount == 2)
         {
             Vector3 firstPos = baseManager.GetBasePosition(BaseId.First);
             var rec = FindNearBaseFielder(fielders, catchFielder, firstPos);
-            return ThrowToFielder(catchFielder, rec, ThrowPlan.First);
+            if (rec != null)
+                return ThrowToFielder(catchFielder, rec, ThrowPlan.First, throwSpeed, catchTime);
+
+            return FallbackToFirst(catchFielder, fielders, baseManager, throwSpeed, catchTime);
         }
 
-        // ★ここがメイン：優先順位で「アウト取れるベース」を探す
-        if (TryDecideThrowBase(catchFielder, fielders, baseManager, etas, out var decidedBase, out var receiver))
+        // 優先順位で「アウト取れるベース」を探す
+        if (TryDecideThrowBase(
+            catchFielder, fielders, baseManager, etas, throwSpeed, catchTime,
+            out var decidedBase, out var receiver))
         {
-            Debug.Log($"[Decision] Throw to {decidedBase} receiver={receiver.name}");
-            return ThrowToFielder(catchFielder, receiver, ToPlan(decidedBase));
+            return ThrowToFielder(catchFielder, receiver, ToPlan(decidedBase), throwSpeed, catchTime);
         }
 
         // どこも間に合わない → とりあえず1塁
-        Vector3 fallbackPos = baseManager.GetBasePosition(BaseId.First);
-        var fallback = FindNearBaseFielder(fielders, catchFielder, fallbackPos);
-        Debug.Log("[Decision] No base can be out. Fallback to First.");
-        return ThrowToFielder(catchFielder, fallback, ThrowPlan.First);
+        return FallbackToFirst(catchFielder, fielders, baseManager, throwSpeed, catchTime);
+    }
+
+    private static ThrowStep FallbackToFirst(
+        FielderController catchFielder,
+        Dictionary<PositionType, FielderController> fielders,
+        BaseManager baseManager,
+        float throwSpeed,
+        float catchTime)
+    {
+        Vector3 firstPos = baseManager.GetBasePosition(BaseId.First);
+        var fallback = FindNearBaseFielder(fielders, catchFielder, firstPos);
+        if (fallback != null)
+            return ThrowToFielder(catchFielder, fallback, ThrowPlan.First, throwSpeed, catchTime);
+
+        // 受け手が取れないなら Return 扱いにしておく
+        if (fielders.TryGetValue(PositionType.Pitcher, out var pitcher) && pitcher != null)
+            return ThrowToFielder(catchFielder, pitcher, ThrowPlan.Return, throwSpeed, catchTime);
+
+        return new ThrowStep
+        {
+            Plan = ThrowPlan.Return,
+            ThrowerFielder = catchFielder,
+            ReceiverFielder = catchFielder,
+            TargetPosition = catchFielder.transform.position,
+            ThrowSpeed = throwSpeed,
+            ArriveTime = float.MaxValue
+        };
     }
 
     private static bool TryDecideThrowBase(
@@ -98,6 +148,8 @@ public static class DefenseThrowDecisionCalculator
         Dictionary<PositionType, FielderController> fielders,
         BaseManager baseManager,
         List<RunnerETA> etas,
+        float throwSpeed,
+        float catchTime,
         out BaseId decidedBase,
         out FielderController receiver)
     {
@@ -109,20 +161,18 @@ public static class DefenseThrowDecisionCalculator
             var baseId = _priority[i];
 
             float runnerEta = GetMinEtaTo(baseId, etas);
-            if (runnerEta == float.MaxValue) continue; // その塁に向かう走者がいない
+            if (runnerEta == float.MaxValue) continue;
 
             Vector3 basePos = baseManager.GetBasePosition(baseId);
             var rec = FindNearBaseFielder(fielders, catchFielder, basePos);
             if (rec == null) continue;
 
-            float ballTime = EstimateBallArriveTime(catchFielder.transform.position, rec.transform.position);
+            float ballArrive = EstimateBallArriveTimeRelative(catchFielder, rec, throwSpeed, catchTime);
 
-            // 最小アウト判定：ボールが先に着くならアウト可能
-            if (ballTime < runnerEta)
+            if (ballArrive < runnerEta)
             {
                 decidedBase = baseId;
                 receiver = rec;
-                Debug.Log($"[Decision] Choose {baseId} (ball={ballTime:F2}s < runner={runnerEta:F2}s) receiver={rec.name}");
                 return true;
             }
         }
@@ -141,9 +191,23 @@ public static class DefenseThrowDecisionCalculator
         return best;
     }
 
-    private static float EstimateBallArriveTime(Vector3 from, Vector3 to)
+    // いまの基準(相対秒)で「何秒後に到達するか」
+    private static float EstimateBallArriveTimeRelative(
+        FielderController thrower,
+        FielderController receiver,
+        float throwSpeed,
+        float catchTime)
     {
-        return Vector3.Distance(from, to) / THROW_SPEED;
+        float delaySec = 0f;
+        if (thrower != null && thrower.Data != null)
+            delaySec = Mathf.Max(0, thrower.Data.ThrowDelay) / 1000f;
+
+        float dist = Vector3.Distance(thrower.transform.position, receiver.transform.position);
+        float flight = dist / Mathf.Max(0.01f, throwSpeed);
+
+        // catchTime は「捕球完了」の相対秒（フライなら捕球、ゴロ回収なら回収）
+        // そこから送球モーション(ThrowDelay)→飛行時間
+        return Mathf.Max(0f, catchTime) + delaySec + flight;
     }
 
     private static ThrowPlan ToPlan(BaseId baseId)
@@ -158,23 +222,37 @@ public static class DefenseThrowDecisionCalculator
         };
     }
 
-    private static ThrowStep ThrowToFielder(FielderController thrower, FielderController catcher, ThrowPlan plan)
+    private static ThrowStep ThrowToFielder(
+        FielderController thrower,
+        FielderController catcher,
+        ThrowPlan plan,
+        float throwSpeed,
+        float startTime)
     {
+        float dist = Vector3.Distance(thrower.transform.position, catcher.transform.position);
+        float flight = dist / Mathf.Max(0.01f, throwSpeed);
+
+        float delaySec = 0f;
+        if (thrower != null && thrower.Data != null)
+            delaySec = Mathf.Max(0, thrower.Data.ThrowDelay) / 1000f;
+
         return new ThrowStep
         {
             Plan = plan,
             TargetPosition = catcher.transform.position,
             ThrowerFielder = thrower,
             ReceiverFielder = catcher,
-            ThrowSpeed = THROW_SPEED,
-            ArriveTime = (thrower.transform.position - catcher.transform.position).magnitude / THROW_SPEED
+            ThrowSpeed = throwSpeed,
+            // 「相対秒」で統一
+            ArriveTime = Mathf.Max(0f, startTime) + delaySec + flight
         };
     }
 
-    /// <summary>
-    /// 外野手→内野の中継（最寄り内野手）
-    /// </summary>
-    private static ThrowStep CalculateCutoffThrowPlan(FielderController catchFielder, Dictionary<PositionType, FielderController> fielders)
+    private static ThrowStep CalculateCutoffThrowPlan(
+        FielderController catchFielder,
+        Dictionary<PositionType, FielderController> fielders,
+        float throwSpeed,
+        float catchTime)
     {
         FielderController nearestInfielder = null;
         float nearestDistance = float.MaxValue;
@@ -182,9 +260,11 @@ public static class DefenseThrowDecisionCalculator
         foreach (var key in fielders)
         {
             FielderController fielder = key.Value;
+            if (fielder == null) continue;
+            if (fielder.Data == null) continue;
             if (fielder.Data.PositionGroupType != PositionGroupType.Infield) continue;
 
-            float distance = (catchFielder.transform.position - fielder.transform.position).magnitude;
+            float distance = Vector3.Distance(catchFielder.transform.position, fielder.transform.position);
             if (distance < nearestDistance)
             {
                 nearestDistance = distance;
@@ -192,15 +272,14 @@ public static class DefenseThrowDecisionCalculator
             }
         }
 
-        return new ThrowStep
+        if (nearestInfielder == null)
         {
-            Plan = ThrowPlan.Cutoff,
-            TargetPosition = nearestInfielder.transform.position,
-            ThrowerFielder = catchFielder,
-            ReceiverFielder = nearestInfielder,
-            ThrowSpeed = THROW_SPEED,
-            ArriveTime = nearestDistance / THROW_SPEED
-        };
+            // 内野が取れないなら投手へ
+            if (fielders.TryGetValue(PositionType.Pitcher, out var pitcher) && pitcher != null)
+                nearestInfielder = pitcher;
+        }
+
+        return ThrowToFielder(catchFielder, nearestInfielder, ThrowPlan.Cutoff, throwSpeed, catchTime);
     }
 
     private static FielderController FindNearBaseFielder(
@@ -213,10 +292,11 @@ public static class DefenseThrowDecisionCalculator
 
         foreach (var key in fielders)
         {
-            if (key.Value == catcher) continue;
+            var fielder = key.Value;
+            if (fielder == null) continue;
+            if (fielder == catcher) continue;
 
-            FielderController fielder = key.Value;
-            float distance = (fielder.transform.position - basePos).magnitude;
+            float distance = Vector3.Distance(fielder.transform.position, basePos);
             if (distance < minDistance)
             {
                 minDistance = distance;

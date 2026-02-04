@@ -3,40 +3,36 @@ using UnityEngine;
 
 public static class DefenseRolePlanner
 {
-    public static DefenseRoles CreateRoles(
-        CatchPlan catchPlan,
-        List<FielderController> fielders)
+    public static DefenseRoles CreateRoles(CatchPlan catchPlan, List<FielderController> fielders)
     {
         DefenseRoles roles = new DefenseRoles
         {
             BaseCovers = new Dictionary<BaseType, FielderController>()
         };
 
-        if (!catchPlan.CanCatch)
+        if (fielders == null || fielders.Count == 0)
             return roles;
 
-        // ’†Œpi‚Æ‚è‚ ‚¦‚¸“à–ìè‚ÅÅ‚à‹ß‚¢lj
         float minDist = float.MaxValue;
+        FielderController cutoff = null;
 
-        foreach (var fielder in fielders)
+        for (int i = 0; i < fielders.Count; i++)
         {
-            if (fielder == catchPlan.Catcher)
-                continue;
+            var fielder = fielders[i];
+            if (fielder == null) continue;
+            if (fielder == catchPlan.Catcher) continue;
 
-            if (!IsInfielder(fielder.Data.Position))
-                continue;
+            if (!IsInfielder(fielder.Data.Position)) continue;
 
-            float dist = Vector3.Distance(
-                fielder.transform.position,
-                catchPlan.CatchPoint);
-
+            float dist = Vector3.Distance(fielder.transform.position, catchPlan.CatchPoint);
             if (dist < minDist)
             {
                 minDist = dist;
-                roles.CutoffMan = fielder;
+                cutoff = fielder;
             }
         }
 
+        roles.CutoffMan = cutoff;
         return roles;
     }
 

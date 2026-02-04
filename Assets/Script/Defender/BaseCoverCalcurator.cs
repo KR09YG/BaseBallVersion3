@@ -5,15 +5,13 @@ public static class BaseCoverCalculator
 {
     private static readonly List<BaseCoverAssign> _buffer = new List<BaseCoverAssign>(4);
     private static readonly HashSet<FielderController> _used = new HashSet<FielderController>(4);
-
-    private static readonly List<BaseId> _basesToCover = new(4);
+    private static readonly List<BaseId> _basesToCover = new List<BaseId>(4);
 
     public static List<BaseCoverAssign> BaseCoverCalculation(
         List<FielderController> fielders,
         DefenseSituation situation,
         CatchPlan catchPlan,
-        BaseManager baseManager,
-        BattingBallResult result)
+        BaseManager baseManager)
     {
         _buffer.Clear();
         _used.Clear();
@@ -27,17 +25,10 @@ public static class BaseCoverCalculator
 
         BuildBasesToCover(_basesToCover, situation);
 
-        foreach (var baseId in _basesToCover)
+        for (int i = 0; i < _basesToCover.Count; i++)
         {
-            AssignNearestToBase(baseId, fielders, baseManager);
+            AssignNearestToBase(_basesToCover[i], fielders, baseManager);
         }
-
-        Debug.Log($"[Cover] basesToCover={string.Join(",", _basesToCover)}");
-        foreach (var a in _buffer)
-            Debug.Log($"[CoverAssign] base={a.BaseId} fielder={a.Fielder.name} arrive={a.ArriveTime:F2}s");
-
-        // ‚à‚µ Third ‚ªŠÜ‚Ü‚ê‚é‚Ì‚É assign ‚ª–³‚¢‚È‚çA‚±‚±‚Å•ª‚©‚é
-
 
         return _buffer;
     }
@@ -50,14 +41,12 @@ public static class BaseCoverCalculator
         bool on2 = s.OnSecondBase;
         bool on3 = s.OnThirdBase;
 
-        // ‚È‚µ
         if (!on1 && !on2 && !on3)
         {
             bases.Add(BaseId.First);
             return;
         }
 
-        // –ž—Û
         if (on1 && on2 && on3)
         {
             bases.Add(BaseId.First);
@@ -67,7 +56,6 @@ public static class BaseCoverCalculator
             return;
         }
 
-        // 1E2—Û
         if (on1 && on2 && !on3)
         {
             bases.Add(BaseId.First);
@@ -76,7 +64,6 @@ public static class BaseCoverCalculator
             return;
         }
 
-        // 1E3—Û
         if (on1 && !on2 && on3)
         {
             bases.Add(BaseId.First);
@@ -85,7 +72,6 @@ public static class BaseCoverCalculator
             return;
         }
 
-        // 2E3—Û
         if (!on1 && on2 && on3)
         {
             bases.Add(BaseId.First);
@@ -94,7 +80,6 @@ public static class BaseCoverCalculator
             return;
         }
 
-        // 1—Û
         if (on1 && !on2 && !on3)
         {
             bases.Add(BaseId.First);
@@ -102,7 +87,6 @@ public static class BaseCoverCalculator
             return;
         }
 
-        // 2—Û
         if (!on1 && on2 && !on3)
         {
             bases.Add(BaseId.First);
@@ -110,23 +94,20 @@ public static class BaseCoverCalculator
             return;
         }
 
-        // 3—Û
         bases.Add(BaseId.First);
         bases.Add(BaseId.Home);
     }
 
-    private static void AssignNearestToBase(
-    BaseId baseId,
-    List<FielderController> fielders,
-    BaseManager baseManager)
+    private static void AssignNearestToBase(BaseId baseId, List<FielderController> fielders, BaseManager baseManager)
     {
         Vector3 basePos = baseManager.GetBasePosition(baseId);
 
         FielderController nearest = null;
         float bestDistSqr = float.MaxValue;
 
-        foreach (var f in fielders)
+        for (int i = 0; i < fielders.Count; i++)
         {
+            var f = fielders[i];
             if (f == null) continue;
             if (_used.Contains(f)) continue;
 
@@ -143,12 +124,9 @@ public static class BaseCoverCalculator
         _used.Add(nearest);
 
         float distance = Mathf.Sqrt(bestDistSqr);
-        float speed = Mathf.Max(0.01f, nearest.Data.MoveSpeed); // 0Š„–hŽ~
+        float speed = Mathf.Max(0.01f, nearest.Data.MoveSpeed);
         float arriveTime = distance / speed;
 
         _buffer.Add(new BaseCoverAssign(baseId, nearest, arriveTime));
-
-        if (nearest == null)
-            Debug.LogWarning($"[CoverAssign] FAILED: base={baseId} (no available fielder). used={_used.Count} fielders={fielders.Count}");
     }
 }
