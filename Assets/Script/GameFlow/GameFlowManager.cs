@@ -9,7 +9,8 @@ public class GameFlowManager : MonoBehaviour
     [SerializeField] private BroadcastWipeRuntimeInCanvas _broadcastWipe;
     [SerializeField] private InningManager _inningManager;
     [SerializeField] private int _waitToNextInningMillis = 2000;
-
+    [SerializeField] private GameObject _restartButton;
+    private bool _isRestartRequested = false;
     private const string WAIT_FOR_CLICK_NEXT = "左クリックで進む";
     private const string WAIT_FOR_CLICK_IN_BATTERBOX = "左クリックで打席へ";
 
@@ -19,13 +20,13 @@ public class GameFlowManager : MonoBehaviour
 
     private void Start()
     {
+        _restartButton.SetActive(false);
         AdvanceInningAsync().Forget();
     }
 
     private async UniTaskVoid AdvanceInningAsync()
     {
         _currentInningNumber = 1;
-        Action ShowScoreAction = () => _scoreboardViewController.ShowScoreboard();
 
         while (_currentInningNumber <= InningSchedule9.Innings)
         {
@@ -33,10 +34,14 @@ public class GameFlowManager : MonoBehaviour
             int topRuns = await PlayHalfInningAsync(isTop: true);
             _topScore += topRuns;
 
-            await _broadcastWipe.PlayAsync(ShowScoreAction);
+            await UniTask.Delay(_waitToNextInningMillis);
 
-            // 9回裏の不要試合（サヨナラ成立済みで裏不要）
-            bool playBottom = !(_currentInningNumber == 9 && _topScore < _bottomScore);
+            if (_currentInningNumber == 9 && _topScore < _bottomScore)
+            {
+                // 9回表終了時点で先攻チームが負けている場合、試合終了
+                _currentInningNumber++;
+                break;
+            }
 
             int bottomRuns = await PlayHalfInningAsync(isTop: false);
             _bottomScore += bottomRuns;
@@ -45,6 +50,35 @@ public class GameFlowManager : MonoBehaviour
 
             _currentInningNumber++;
         }
+
+        FinishGameAsync().Forget();
+    }
+
+    private async UniTaskVoid FinishGameAsync()
+    {
+        // 試合終了処理
+        TextView.Instance.SetText(TextViewType.Result, $"試合結果 {_topScore} : {_bottomScore}");
+        Cursor.visible = true;
+        _restartButton.SetActive(true);
+        // リスタートが押されるまで待機
+        await UniTask.WaitUntil(() => _isRestartRequested);
+        Cursor.visible = false;
+        // リスタート処理（仮）
+        UnityEngine.SceneManagement.SceneManager.LoadScene(UnityEngine.SceneManagement.SceneManager.GetActiveScene().name);
+    }
+
+    /// <summary>
+    /// リスタートボタンが押されたときの処理
+    /// </summary>
+    public void OnRestartButton()
+    {
+        _isRestartRequested = true;
+    }
+
+    private void OnInitializedGame()
+    {
+        // ゲーム初期化時の処理
+        Start();
     }
 
     /// <summary>
@@ -84,6 +118,10 @@ public class GameFlowManager : MonoBehaviour
             // 半イニングをプレイして得点を受け取る
             runs = await _inningManager.PlayHalfAndWaitAsync();
 
+            await _broadcastWipe.PlayAsync(() =>
+            {
+                _scoreboardViewController.ShowScoreboard();
+            });
         }
         else
         {

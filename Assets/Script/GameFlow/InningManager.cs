@@ -16,6 +16,7 @@ public class InningManager : MonoBehaviour
     private const int DELAY_PITCH = 1000;
     private bool _isPlayEnd;
     private DefenseSituation _currentSituation;
+    private int _scoreThisHalfInning;
 
     private GameFlow _currentFlow = GameFlow.StartIning;
     public GameFlow CurrentFlow => _currentFlow;
@@ -53,10 +54,11 @@ public class InningManager : MonoBehaviour
         _defensePlayJudgedEvent.UnregisterListener(PlayJudge);
     }
 
-    public void ReceivedResult(bool isFinInning)
+    public void ReceivedResult(bool isFinInning, int score)
     {
         if (isFinInning)
         {
+            _scoreThisHalfInning = score;
             _playEndTcs.TrySetResult();
         }
         else
@@ -77,6 +79,7 @@ public class InningManager : MonoBehaviour
     public void InningInitialized(DefenseSituation situation)
     {
         SetGameFlow(GameFlow.StartIning);
+        _scoreThisHalfInning = 0;
         _isPlayEnd = false;
         _batterAppear.Play();
         if (situation == null)
@@ -101,8 +104,8 @@ public class InningManager : MonoBehaviour
         _batterRoutine.Play();
 
         var completed = await UniTask.WhenAny(_playEndTcs.Task);
-        int score = 0;
-        return score;
+        
+        return _scoreThisHalfInning;
     }
 
     public void OnBatterReady()
