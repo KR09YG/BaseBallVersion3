@@ -17,6 +17,11 @@ public class StrikeBallJudge : MonoBehaviour
 
     private void OnReleased(PitchBallMove ball)
     {
+        if (_strikeZone == null)
+        {
+            _strikeZone = FindObjectOfType<StrikeZone>();
+        }
+
         if (!BallTrajectoryPredictor.TryGetCrossPointAtZ(
                 ball.Trajectory, _strikeZone.CenterZ, out var point))
         {
