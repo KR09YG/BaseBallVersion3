@@ -58,16 +58,15 @@ public class DefenseManager : MonoBehaviour, IInitializable
         if (_battingBallTrajectoryEvent != null) _battingBallTrajectoryEvent?.RegisterListener(OnBattingBallTrajectory);
         else Debug.LogError("OnBattingBallTrajectoryEvent is not assigned in DefenseManager.");
 
-        if (_defenderCatchEvent != null) ;
+        if (_defenderCatchEvent != null) _defenderCatchEvent?.RegisterListener(OnDefenderCatchEvent);
         else Debug.LogError("OnDefenderCatchEvent is not assigned in DefenseManager.");
 
         if (_ballSpawnedEvent != null) _ballSpawnedEvent.RegisterListener(SetBall);
         else Debug.LogError("OnBallSpawnedEvent is not assigned in DefenseManager.");
 
-        if (_atBatResetEvent != null) _atBatResetEvent?.RegisterListener(OnAtBatReset);
-        else Debug.LogError("OnAtBatResetEvent is not assigned in DefenseManager.");
 
-        // 初期化可能なオブジェクトを辞書に追加
+        _atBatResetEvent?.RegisterListener(OnAtBatReset);
+
         _byPosition ??= new Dictionary<PositionType, FielderController>();
 
         for (int i = 0; i < _fielders.Count; i++)
@@ -79,7 +78,6 @@ public class DefenseManager : MonoBehaviour, IInitializable
                 _byPosition.Add(f.Data.Position, f);
         }
 
-        // 初期位置を保存
         _initialPositions.Clear();
         for (int i = 0; i < _fielders.Count; i++)
         {
@@ -90,9 +88,6 @@ public class DefenseManager : MonoBehaviour, IInitializable
         }
     }
 
-    /// <summary>
-    /// 初期化処理
-    /// </summary>
     public void OnInitialized(DefenseSituation situation)
     {
         _situation = situation;
@@ -108,9 +103,6 @@ public class DefenseManager : MonoBehaviour, IInitializable
         }
     }
 
-    /// <summary>
-    /// 打席リセット時処理
-    /// </summary>
     public void OnAtBatReset()
     {
         OnInitialized(_situation);
@@ -128,18 +120,12 @@ public class DefenseManager : MonoBehaviour, IInitializable
         _throwCts = null;
     }
 
-    /// <summary>
-    /// 打球軌道受信時処理
-    /// </summary>
     private void OnBattingBallTrajectory(List<Vector3> trajectory)
     {
         _pendingTrajectory = trajectory;
         TryStartDefenseFromHit();
     }
 
-    /// <summary>
-    /// 打球結果受信時処理
-    /// </summary>
     private void OnBattingResult(BattingBallResult result)
     {
         _pendingResult = result;
@@ -147,14 +133,11 @@ public class DefenseManager : MonoBehaviour, IInitializable
         TryStartDefenseFromHit();
     }
 
-    /// <summary>
-    /// 打球情報が揃ったら守備処理開始
-    /// </summary>
     private void TryStartDefenseFromHit()
     {
-        // 両方揃ってないなら待つ
         if (_pendingTrajectory == null || _pendingTrajectory.Count == 0) return;
         if (!_hasPendingResult) return;
+        if (_pendingResult.BallType == BattingBallType.Foul) return;
 
         var traj = _pendingTrajectory;
         var res = _pendingResult;
@@ -165,16 +148,12 @@ public class DefenseManager : MonoBehaviour, IInitializable
         OnBallHit(traj, res);
     }
 
-    /// <summary>
-    /// 打球処理開始時処理
-    /// </summary>
     private void OnBallHit(List<Vector3> trajectory, BattingBallResult result)
     {
         if (result == null) return;
-        // ファール・本塁打は守備処理しない
-        if (result.BallType == BattingBallType.Foul || result.BallType == BattingBallType.HomeRun) return;
+        if (result.BallType == BattingBallType.Foul || result.BallType == BattingBallType.HomeRun)
+            return;
 
-        // 捕球プラン計算
         CatchPlan catchPlan = DefenseCalculator.CalculateCatchPlan(
             trajectory,
             result,
@@ -183,7 +162,8 @@ public class DefenseManager : MonoBehaviour, IInitializable
 
         _isFly = catchPlan.IsFly;
 
-        catchPlan.IsOutfield = catchPlan.Catcher.Data.PositionGroupType == PositionGroupType.Outfield;
+        // 守備側で内外野を確定して渡す（Runner側に閾値を持たせない）
+        catchPlan.IsOutfield = EstimateIsOutfield(catchPlan.CatchPoint);
 
         // 捕球前にベースカバーを走らせる
         _currentBaseCovers = BaseCoverCalculator.BaseCoverCalculation(
@@ -195,7 +175,7 @@ public class DefenseManager : MonoBehaviour, IInitializable
         // CatchPlan に「各塁への送球到達予測秒」を埋める
         FillThrowArrivalTimes(ref catchPlan, _currentBaseCovers);
 
-        // 決定した捕球プランを通知
+        // 完成版を通知（RunnerManager はこれで走塁開始＆長打判断）
         _onDecidedCatchPlan?.RaiseEvent(catchPlan);
 
         // 捕球者は捕球点へ
@@ -214,29 +194,20 @@ public class DefenseManager : MonoBehaviour, IInitializable
         }
     }
 
-    /// <summary>
-    /// ボールオブジェクト設定時処理
-    /// </summary>
-    /// <param name="ball"></param>
     private void SetBall(GameObject ball)
     {
         if (ball != null && ball.TryGetComponent<FielderThrowBallMove>(out var ballThrow))
             _ballThrow = ballThrow;
     }
 
-    /// <summary>
-    /// 守備選手の捕球イベント処理
-    /// </summary>
-    /// <param name="catchDefender"></param>
+    // NOTE: あなたのイベント定義に合わせて引数は1つのまま
     public void OnDefenderCatchEvent(FielderController catchDefender)
     {
-        // 既に送球処理中なら無視
         if (_isThrowing) return;
         if (_ballThrow == null) return;
         if (_runnerManager == null) return;
         if (catchDefender == null) return;
 
-        // 送球プラン計算
         var steps = DefenseThrowDecisionCalculator.ThrowDicision(
             catchDefender,
             _isFly,
@@ -247,9 +218,9 @@ public class DefenseManager : MonoBehaviour, IInitializable
             throwSpeed: 30f,
             catchTime: 0f);
 
-        if (steps == null || steps.Count == 0) return;
+        if (steps == null || steps.Count == 0)
+            return;
 
-        // 送球シーケンス開始
         _throwCts?.Cancel();
         _throwCts?.Dispose();
         _throwCts = new CancellationTokenSource();
@@ -260,9 +231,6 @@ public class DefenseManager : MonoBehaviour, IInitializable
         ExecuteThrowSequenceAsync(_throwCts.Token).Forget();
     }
 
-    /// <summary>
-    /// 送球シーケンス実行
-    /// </summary>
     private async UniTaskVoid ExecuteThrowSequenceAsync(CancellationToken ct)
     {
         _isThrowing = true;
@@ -271,32 +239,36 @@ public class DefenseManager : MonoBehaviour, IInitializable
 
         try
         {
-            // 送球ステップを順次実行
             while (_currentThrowSteps != null && _currentThrowIndex < _currentThrowSteps.Count)
             {
                 ct.ThrowIfCancellationRequested();
 
                 ThrowStep step = _currentThrowSteps[_currentThrowIndex];
 
-                // ゲッツー用（後で実装）
-                if (TryBuildBaseJudgement(step, out var baseJudge))
+                // ベースへ投げる瞬間に「その塁の判定」を通知（ゲッツー対応の入口）
+                if (TryBuildBaseJudgement(step, out var baseJudge, out var legacyOutcome))
                 {
                     _onBasePlayJudged?.RaiseEvent(baseJudge);
+
+                    if (!outcome.HasJudgement)
+                    {
+                        outcome = legacyOutcome;
+                    }
                 }
-                // 送球ステップ実行
+
                 await step.ThrowerFielder.ExecuteThrowStepAsync(step, _ballThrow, ct);
 
                 _currentThrowIndex++;
             }
         }
-        catch (OperationCanceledException) // キャンセル時無視
+        catch (OperationCanceledException)
         {
         }
         finally
         {
             _isThrowing = false;
 
-            // フライ捕球はアウト
+            // フライ捕球はアウト（最終結果）
             if (_isFly)
             {
                 outcome.HasJudgement = true;
@@ -307,40 +279,37 @@ public class DefenseManager : MonoBehaviour, IInitializable
                 outcome.RunnerArriveTime = 0f;
                 outcome.RunnerName = "(flyout)";
 
-                // 後で実装
-                //if (_onBasePlayJudged != null)
-                //{
-                //    _onBasePlayJudged.RaiseEvent(new BasePlayJudgement
-                //    {
-                //        RunnerType = RunnerType.Batter,
-                //        TargetBase = BaseId.None,
-                //        IsOut = true,
-                //        BallArriveTime = 0f,
-                //        RunnerArriveTime = 0f
-                //    });
-                //}
+                // 「バッターアウト」をRunnerManagerへ確定させたいならここで通知（推奨）
+                // ※ TargetBase は None にして「塁アウトではない」扱い
+                if (_onBasePlayJudged != null)
+                {
+                    _onBasePlayJudged.RaiseEvent(new BasePlayJudgement
+                    {
+                        RunnerType = RunnerType.Batter,
+                        TargetBase = BaseId.None,
+                        IsOut = true,
+                        BallArriveTime = 0f,
+                        RunnerArriveTime = 0f
+                    });
+                }
             }
 
-            // 送球シーケンス終了通知
             if (_defenderFinishedEvent != null) _defenderFinishedEvent.RaiseEvent(outcome);
         }
     }
 
-    /// <summary>
-    /// 塁上の走者に対する送球判定を構築する
-    /// </summary>
-    private bool TryBuildBaseJudgement(ThrowStep step, out BasePlayJudgement baseJudge)
+    // ベース投げの判定を作る（RunnerManagerへ渡す用 + 互換用Outcome）
+    private bool TryBuildBaseJudgement(ThrowStep step, out BasePlayJudgement baseJudge, out DefensePlayOutcome legacyOutcome)
     {
         baseJudge = default;
+        legacyOutcome = new DefensePlayOutcome { HasJudgement = false };
 
-        // 送球対象塁を取得
-        if (!TryPlanToBase(step.Plan, out var baseId)) return false;
+        if (!TryPlanToBase(step.Plan, out var baseId))
+            return false;
 
-        // 送球対象塁にいる走者の中で最も早く到達する走者を探す
         _etaBuffer.Clear();
         _runnerManager.GetAllRunningETAs(_etaBuffer, true);
 
-        // 最速走者を探す
         float best = float.MaxValue;
         Runner bestRunner = null;
 
@@ -356,16 +325,16 @@ public class DefenseManager : MonoBehaviour, IInitializable
             }
         }
 
-        if (bestRunner == null) return false;
+        if (bestRunner == null)
+            return false;
 
-        // 走者の到達時間と送球到達時間を比較してアウトかセーフか判定
+        // ArriveTime は「今投げたら何秒で着くか」の相対として扱う（あなたの既存設計に合わせる）
         float ballArrive = step.ArriveTime;
         bool isOut = ballArrive <= best;
 
-        // 判定情報構築
+        // RunnerTypeは Runner が持ってる想定（RunnerData.Type を公開してないなら Runner側に getter を追加）
         RunnerType rtype = bestRunner.Data.Type;
 
-        // 判定情報
         baseJudge = new BasePlayJudgement
         {
             RunnerType = rtype,
@@ -375,12 +344,20 @@ public class DefenseManager : MonoBehaviour, IInitializable
             RunnerArriveTime = best
         };
 
+        legacyOutcome = new DefensePlayOutcome
+        {
+            HasJudgement = true,
+            IsOut = isOut,
+            Plan = step.Plan,
+            TargetBase = baseId,
+            BallArriveTime = ballArrive,
+            RunnerArriveTime = best,
+            RunnerName = bestRunner != null ? bestRunner.name : "(null)"
+        };
+
         return true;
     }
 
-    /// <summary>
-    /// 送球プランを塁IDに変換する
-    /// </summary>
     private static bool TryPlanToBase(ThrowPlan plan, out BaseId baseId)
     {
         switch (plan)
@@ -395,53 +372,54 @@ public class DefenseManager : MonoBehaviour, IInitializable
         }
     }
 
-    /// <summary>
-    /// CatchPlan に各塁への送球到達予測秒を埋める
-    /// </summary>
+    private bool EstimateIsOutfield(Vector3 p)
+    {
+        if (_baseManager == null) return false;
+
+        Vector3 home = _baseManager.GetBasePosition(BaseId.Home);
+        home.y = 0f;
+
+        Vector3 q = p;
+        q.y = 0f;
+
+        return Vector3.Distance(home, q) >= _outfieldDistance;
+    }
+
     private void FillThrowArrivalTimes(ref CatchPlan plan, List<BaseCoverAssign> covers)
     {
         float catchTime = Mathf.Max(0f, plan.CatchTime);
 
-        // 送球遅延時間
         float throwDelaySec = 0f;
         if (plan.Catcher != null && plan.Catcher.Data != null)
             throwDelaySec = Mathf.Max(0, plan.Catcher.Data.ThrowDelay) / 1000f;
 
-        // 受取側の準備完了時間取得関数
         float ReceiverReady(BaseId baseId)
         {
             if (covers == null) return catchTime;
-            
             for (int i = 0; i < covers.Count; i++)
             {
-                // 該当塁の到着時間を返す
                 if (covers[i].BaseId == baseId)
                     return Mathf.Max(catchTime, covers[i].ArriveTime);
             }
             return catchTime;
         }
 
-        // 各塁への送球到達予測秒を計算して埋める
         plan.ThrowToFirstTime = EstimateThrowArrivalTime(plan.CatchPoint, BaseId.First, ReceiverReady(BaseId.First), throwDelaySec);
         plan.ThrowToSecondTime = EstimateThrowArrivalTime(plan.CatchPoint, BaseId.Second, ReceiverReady(BaseId.Second), throwDelaySec);
         plan.ThrowToThirdTime = EstimateThrowArrivalTime(plan.CatchPoint, BaseId.Third, ReceiverReady(BaseId.Third), throwDelaySec);
         plan.ThrowToHomeTime = EstimateThrowArrivalTime(plan.CatchPoint, BaseId.Home, ReceiverReady(BaseId.Home), throwDelaySec);
     }
 
-    /// <summary>
-    /// 送球到達予測時間を見積もる
-    /// </summary>
     private float EstimateThrowArrivalTime(Vector3 fromPoint, BaseId toBase, float startTime, float throwDelaySec)
     {
         if (_baseManager == null) return float.MaxValue;
 
-        // XZ距離で計算
         Vector3 from = fromPoint; from.y = 0f;
         Vector3 to = _baseManager.GetBasePosition(toBase); to.y = 0f;
-        // 距離計算
+
         float dist = Vector3.Distance(from, to);
         float flight = dist / Mathf.Max(0.01f, _estimatedThrowSpeed);
-        // 到達時間返却
+
         return startTime + throwDelaySec + flight;
     }
 }
