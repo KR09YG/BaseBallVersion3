@@ -1,0 +1,63 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 02ff38c3d1e969b4782a19e8420392b0, type: 3}
+  m_Name: BattingParam
+  m_EditorClassIdentifier: 
+  maxImpactDistance: 0.15
+  sweetSpotRadius: 0.02
+  batSpeedKmh: 130
+  batMass: 0.9
+  coefficientOfRestitution: 0.5
+  exitVelocityScale: 1
+  minImpactEfficiency: 0.05
+  impactEfficiencyCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 0.05
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  idealLaunchAngle: 25
+  launchAngleScale: 20
+  launchAnglePower: 1.2
+  minLaunchAngle: -10
+  maxLaunchAngle: 50
+  maxFairAngle: 45
+  maxFoulAngle: 60
+  foulThreshold: 0.7
+  baseBackspinRPM: 2000
+  minSpinRate: 500
+  maxSpinRate: 4000
+  maxLiftCoefficient: 0.5
+  liftCoefficientA: 1.2
+  liftCoefficientB: 0.2
+  homerunDistance: 120
+  hitDistance: 30
+  enableDebugLogs: 1
+  showTrajectoryGizmos: 1
