@@ -6,6 +6,8 @@ public class StrikeZoneUI : MonoBehaviour, IInitializable
     [SerializeField] private OnPitchBallReleaseEvent _pitchBallReleaseEvent;
     [SerializeField] private OnBallReachedTargetEvent _ballReachedTargetEvent;
     [SerializeField] private OnStrikeJudgeEvent _onStrikeJudgeEvent;
+    [SerializeField] private OnAtBatResetEvent _atBatResetEvent;
+    [SerializeField] private OnBattingResultEvent _battingResultEvent;
 
     [Header("ストライクゾーンUIの設定")]
     [SerializeField] private StrikeZone _strikeZone;
@@ -33,6 +35,12 @@ public class StrikeZoneUI : MonoBehaviour, IInitializable
 
         if (_onStrikeJudgeEvent != null) _onStrikeJudgeEvent.RegisterListener(ShowPrediction);
         else Debug.LogError("[StrikeZoneUI] OnStrikeJudgeEventが設定されていません！");
+
+        if (_atBatResetEvent != null) _atBatResetEvent.RegisterListener(OnAtBatReset);
+        else Debug.LogError("[StrikeZoneUI] AtBatResetEventが設定されていません！");
+
+        if (_battingResultEvent != null) _battingResultEvent.RegisterListener(OnBatterResult);
+        else Debug.LogError("[StrikeZoneUI] BattingResultEventが設定されていません！");
     }
 
     private void OnDestroy()
@@ -40,6 +48,8 @@ public class StrikeZoneUI : MonoBehaviour, IInitializable
         _pitchBallReleaseEvent?.UnregisterListener(OnRelease);
         _ballReachedTargetEvent?.UnregisterListener(OnBallReached);
         _onStrikeJudgeEvent?.UnregisterListener(ShowPrediction);
+        _atBatResetEvent?.UnregisterListener(OnAtBatReset);
+        _battingResultEvent?.UnregisterListener(OnBatterResult);
         _cts?.Cancel();
         _cts?.Dispose();
     }
@@ -151,6 +161,18 @@ public class StrikeZoneUI : MonoBehaviour, IInitializable
 
     public void OnBatterSetCompleted()
     {
+        _lineRenderer.enabled = true;
+    }
+
+    private void OnBatterResult(BattingBallResult result)
+    {
+        _lineRenderer.enabled = false;
+        _marker.SetActive(false);
+    }
+
+    private void OnAtBatReset()
+    {
+        _marker.SetActive(false);
         _lineRenderer.enabled = true;
     }
 }

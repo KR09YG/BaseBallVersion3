@@ -6,12 +6,23 @@ public class BattingCursor : MonoBehaviour, IInitializable
     [SerializeField] private GameObject _strikeZoon;
     [SerializeField] private GameObject _battingCursor;
     [SerializeField] private MeshRenderer _cursorRenderer;
+    [SerializeField] private OnSwingEvent _swingEvent;
+    [SerializeField] private OnAtBatResetEvent _atBatResetEvent;
     [SerializeField] private float _moveSpeed = 5f;
     [SerializeField] private float _moveRange = 0.5f;
     private Collider _strikeZoneCollider;
     private Vector3 _currentPos;
     private bool _isInputActive = false;
     public Vector3 CurrentPos => _currentPos;
+
+    private void Awake()
+    {
+        if (_swingEvent != null) _swingEvent.RegisterListener(FinishInput);
+        else Debug.LogWarning("_swingEvent is not assigned in BattingCursor.");
+
+        if (_atBatResetEvent != null) _atBatResetEvent.RegisterListener(StartInput);
+        else Debug.LogWarning("_atBatResetEvent is not assigned in BattingCursor.");
+    }
 
     private void Start()
     {
@@ -20,6 +31,12 @@ public class BattingCursor : MonoBehaviour, IInitializable
             _strikeZoneCollider = _strikeZoon.GetComponent<Collider>();
         }
         StartInput();
+    }
+
+    private void OnDestroy()
+    {
+        _swingEvent?.UnregisterListener(FinishInput);
+        _atBatResetEvent?.UnregisterListener(StartInput);
     }
 
     private void Update()

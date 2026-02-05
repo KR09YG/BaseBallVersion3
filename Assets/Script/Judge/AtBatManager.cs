@@ -26,15 +26,32 @@ public class Count
     }
 }
 
-public class AtBatManager : MonoBehaviour
+public class AtBatManager : MonoBehaviour, IInitializable
 {
+    [SerializeField] private InningManager _inningManager;
+    [SerializeField] private BallCountDisplay _ballCountDisplay;
     private Count _currentCount = new Count();
     private PlayOutcomeType _lastPitchOutcome;
     public Count CurrentCount => _currentCount;
 
-    public void ReceivedResult(PlayOutcomeType outcome)
+    public void OnInitialized(DefenseSituation situation)
     {
+        _currentCount.Reset();
+        _currentCount.Outs = situation.OutCount;
+        _ballCountDisplay.UpdateBallCount(_currentCount);
+    }
+
+    public void ReceivedResult(PlayOutcomeType outcome, int score)
+    {
+        bool isFin = false;
         Debug.Log(outcome);
+
+        if (outcome == PlayOutcomeType.Hit ||
+            outcome == PlayOutcomeType.Out ||
+            outcome == PlayOutcomeType.Homerun)
+        {
+            isFin = true;
+        }
 
         if (outcome == PlayOutcomeType.Ball)
         {
@@ -54,6 +71,7 @@ public class AtBatManager : MonoBehaviour
                 _currentCount.Outs++;
                 if (_currentCount.Outs >= 3)
                 {
+                    isFin = true;
                     Debug.Log("3アウト : チェンジ");
                 }
                 _currentCount.Reset();
@@ -64,5 +82,10 @@ public class AtBatManager : MonoBehaviour
         {
             _currentCount.Strikes++;
         }
+
+        // ここでカウントの表示をしているクラスの更新処理を呼ぶ
+        _ballCountDisplay.UpdateBallCount(_currentCount);
+
+        _inningManager.ReceivedResult(isFin, score);
     }
 }
