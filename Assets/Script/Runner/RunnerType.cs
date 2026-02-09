@@ -5,5 +5,6 @@ public enum RunnerType
     Batter,
     First,
     Second,
-    Third
+    Third,
+    None
 }

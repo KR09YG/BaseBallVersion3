@@ -1,309 +1,296 @@
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
+/// <summary>
+/// 守備の送球判断（簡潔版）
+/// </summary>
 public static class DefenseThrowDecisionCalculator
 {
-    private static readonly List<RunnerETA> _etaBuffer = new(8);
-
-    // 優先順位（現状維持）
-    private static readonly BaseId[] _priority =
-    {
-        BaseId.Home, BaseId.Third, BaseId.Second, BaseId.First
-    };
-
     /// <summary>
-    /// 送球判断
+    /// 最適な送球シーケンスを決定
     /// </summary>
-    /// <param name="catchFielder">捕球（回収）した野手</param>
-    /// <param name="isFly">フライ捕球なら true</param>
-    /// <param name="fielders">守備辞書</param>
-    /// <param name="baseManager">塁座標</param>
-    /// <param name="situation">状況（アウトカウント等）</param>
-    /// <param name="runnerManager">RunnerETA取得用</param>
-    /// <param name="throwSpeed">送球速度(m/s) ※守備調整値</param>
-    /// <param name="catchTime">捕球完了の相対秒（catchPlan.CatchTime 等）</param>
-    public static List<ThrowStep> ThrowDicision(
-        FielderController catchFielder,
-        bool isFly,
-        Dictionary<PositionType, FielderController> fielders,
+    public static List<ThrowStep> DecideOptimalThrows(
+        List<RunnerAction> runnerPlans,
+        Dictionary<BaseId, float> throwTimes,
+        CatchPlan catchPlan,
         BaseManager baseManager,
-        DefenseSituation situation,
-        RunnerManager runnerManager,
-        float throwSpeed,
-        float catchTime)
+        Dictionary<PositionType, FielderController> fieldersByPosition,
+        List<BaseCoverAssign> baseCovers,
+        float throwSpeed)
     {
-        if (catchFielder == null || fielders == null || fielders.Count == 0)
-        {
-            Debug.LogError("[Decision] catchFielder null / fielders empty");
-            return null;
-        }
-        if (runnerManager == null)
-        {
-            Debug.LogError("[Decision] runnerManager is null");
-            return null;
-        }
-        if (baseManager == null)
-        {
-            Debug.LogError("[Decision] baseManager is null");
-            return null;
-        }
+        var ctx = new ThrowContext(
+            runnerPlans, throwTimes, catchPlan, 
+            baseManager, fieldersByPosition, baseCovers, throwSpeed);
 
-        // ETA取得
-        _etaBuffer.Clear();
-        runnerManager.GetAllRunningETAs(_etaBuffer, true);
+        // フライは送球なし
+        if (catchPlan.IsFly)
+            return new List<ThrowStep> { ctx.CreateReturn() };
 
-        List<ThrowStep> throwSteps = new();
+        // 候補評価
+        var candidates = EvaluateCandidates(ctx);
+        if (candidates.Count == 0)
+            return new List<ThrowStep> { ctx.CreateReturn() };
 
-        // 外野：Cutoff → Pitcher返球（現状維持）
-        if (catchFielder.Data.PositionGroupType == PositionGroupType.Outfield)
+        // ゲッツー判定
+        var doublePlay = TryDoublePlay(candidates, ctx);
+        if (doublePlay != null)
+            return doublePlay;
+
+        // 単独アウト
+        var best = candidates
+            .Where(c => c.IsOut)
+            .OrderByDescending(c => c.Priority)
+            .FirstOrDefault();
+
+        if (best.TargetBase == BaseId.None)
+            return new List<ThrowStep> { ctx.CreateReturn() };
+
+        var step = ctx.CreateThrow(best.TargetBase, best.BallArrival);
+        return step != null 
+            ? new List<ThrowStep> { step.Value } 
+            : new List<ThrowStep> { ctx.CreateReturn() };
+    }
+
+    // ========== 候補評価 ==========
+
+    private static List<ThrowCandidate> EvaluateCandidates(ThrowContext ctx)
+    {
+        var candidates = new List<ThrowCandidate>();
+
+        foreach (var action in ctx.RunnerPlans)
         {
-            ThrowStep cutoff = CalculateCutoffThrowPlan(catchFielder, fielders, throwSpeed, catchTime);
-            throwSteps.Add(cutoff);
+            if (action.TargetBase == BaseId.None) continue;
 
-            if (fielders.TryGetValue(PositionType.Pitcher, out var pitcher) && pitcher != null)
+            float runnerTime = CalculateRunnerTime(action);
+            float ballTime = ctx.ThrowTimes.GetValueOrDefault(action.TargetBase, float.MaxValue);
+
+            if (ballTime == float.MaxValue) continue;
+
+            bool isOut = ballTime < runnerTime;
+            float margin = runnerTime - ballTime;
+
+            candidates.Add(new ThrowCandidate
             {
-                throwSteps.Add(ThrowToFielder(cutoff.ReceiverFielder, pitcher, ThrowPlan.Return, throwSpeed, cutoff.ArriveTime));
-            }
-            return throwSteps;
+                TargetBase = action.TargetBase,
+                RunnerType = action.RunnerType,
+                BallArrival = ballTime,
+                IsOut = isOut,
+                Margin = margin,
+                Priority = CalculatePriority(action.TargetBase, isOut, margin)
+            });
         }
 
-        // 内野：投げるベースを決める
-        throwSteps.Add(DetermineInfieldThrowPlan(
-            catchFielder, fielders, baseManager, isFly, situation, _etaBuffer, throwSpeed, catchTime));
-
-        return throwSteps;
+        return candidates;
     }
 
-    private static ThrowStep DetermineInfieldThrowPlan(
-        FielderController catchFielder,
-        Dictionary<PositionType, FielderController> fielders,
-        BaseManager baseManager,
-        bool isFly,
-        DefenseSituation situation,
-        List<RunnerETA> etas,
-        float throwSpeed,
-        float catchTime)
+    private static float CalculatePriority(BaseId baseId, bool isOut, float margin)
     {
-        // 内野フライ：投手へ返球（現状維持）
-        if (isFly)
+        if (!isOut) return -1000f;
+
+        float basePriority = baseId switch
         {
-            if (fielders.TryGetValue(PositionType.Pitcher, out var pitcher) && pitcher != null)
-                return ThrowToFielder(catchFielder, pitcher, ThrowPlan.Return, throwSpeed, catchTime);
-
-            return FallbackToFirst(catchFielder, fielders, baseManager, throwSpeed, catchTime);
-        }
-
-        // 2アウト：まず1塁（現状維持）
-        if (situation != null && situation.OutCount == 2)
-        {
-            Vector3 firstPos = baseManager.GetBasePosition(BaseId.First);
-            var rec = FindNearBaseFielder(fielders, catchFielder, firstPos);
-            if (rec != null)
-                return ThrowToFielder(catchFielder, rec, ThrowPlan.First, throwSpeed, catchTime);
-
-            return FallbackToFirst(catchFielder, fielders, baseManager, throwSpeed, catchTime);
-        }
-
-        // 優先順位で「アウト取れるベース」を探す
-        if (TryDecideThrowBase(
-            catchFielder, fielders, baseManager, etas, throwSpeed, catchTime,
-            out var decidedBase, out var receiver))
-        {
-            return ThrowToFielder(catchFielder, receiver, ToPlan(decidedBase), throwSpeed, catchTime);
-        }
-
-        // どこも間に合わない → とりあえず1塁
-        return FallbackToFirst(catchFielder, fielders, baseManager, throwSpeed, catchTime);
-    }
-
-    private static ThrowStep FallbackToFirst(
-        FielderController catchFielder,
-        Dictionary<PositionType, FielderController> fielders,
-        BaseManager baseManager,
-        float throwSpeed,
-        float catchTime)
-    {
-        Vector3 firstPos = baseManager.GetBasePosition(BaseId.First);
-        var fallback = FindNearBaseFielder(fielders, catchFielder, firstPos);
-        if (fallback != null)
-            return ThrowToFielder(catchFielder, fallback, ThrowPlan.First, throwSpeed, catchTime);
-
-        // 受け手が取れないなら Return 扱いにしておく
-        if (fielders.TryGetValue(PositionType.Pitcher, out var pitcher) && pitcher != null)
-            return ThrowToFielder(catchFielder, pitcher, ThrowPlan.Return, throwSpeed, catchTime);
-
-        return new ThrowStep
-        {
-            Plan = ThrowPlan.Return,
-            ThrowerFielder = catchFielder,
-            ReceiverFielder = catchFielder,
-            TargetPosition = catchFielder.transform.position,
-            ThrowSpeed = throwSpeed,
-            ArriveTime = float.MaxValue
+            BaseId.Home => 100f,
+            BaseId.Third => 70f,
+            BaseId.Second => 40f,
+            BaseId.First => 10f,
+            _ => 0f
         };
+
+        return basePriority + Mathf.Clamp(margin * 10f, 0f, 30f);
     }
 
-    private static bool TryDecideThrowBase(
-        FielderController catchFielder,
-        Dictionary<PositionType, FielderController> fielders,
-        BaseManager baseManager,
-        List<RunnerETA> etas,
-        float throwSpeed,
-        float catchTime,
-        out BaseId decidedBase,
-        out FielderController receiver)
+    private static float CalculateRunnerTime(RunnerAction action)
     {
-        decidedBase = BaseId.First;
-        receiver = null;
+        int bases = (int)action.TargetBase - (action.StartBase == BaseId.None ? 0 : (int)action.StartBase);
+        return action.StartDelay + Mathf.Max(0, bases) * 3.8f;
+    }
 
-        for (int i = 0; i < _priority.Length; i++)
+    // ========== ゲッツー判定 ==========
+
+    private static List<ThrowStep> TryDoublePlay(List<ThrowCandidate> candidates, ThrowContext ctx)
+    {
+        var outs = candidates.Where(c => c.IsOut && c.Margin > 0.2f).ToList();
+        if (outs.Count < 2) return null;
+
+        var first = outs.FirstOrDefault(c => c.TargetBase == BaseId.First);
+        var second = outs.FirstOrDefault(c => c.TargetBase == BaseId.Second);
+        var third = outs.FirstOrDefault(c => c.TargetBase == BaseId.Third);
+        var home = outs.FirstOrDefault(c => c.TargetBase == BaseId.Home);
+
+        // パターン1: 1塁 → 2塁
+        if (first.TargetBase != BaseId.None && second.TargetBase != BaseId.None)
         {
-            var baseId = _priority[i];
+            var dp = TryDoublePlayPattern(BaseId.First, BaseId.Second, first.BallArrival, ctx);
+            if (dp != null) return dp;
+        }
 
-            float runnerEta = GetMinEtaTo(baseId, etas);
-            if (runnerEta == float.MaxValue) continue;
+        // パターン2: 2塁 → 1塁
+        if (second.TargetBase != BaseId.None && first.TargetBase != BaseId.None && 
+            second.Margin > first.Margin)
+        {
+            var dp = TryDoublePlayPattern(BaseId.Second, BaseId.First, second.BallArrival, ctx);
+            if (dp != null) return dp;
+        }
 
-            Vector3 basePos = baseManager.GetBasePosition(baseId);
-            var rec = FindNearBaseFielder(fielders, catchFielder, basePos);
-            if (rec == null) continue;
+        // パターン3: ホーム → 1塁
+        if (home.TargetBase != BaseId.None && first.TargetBase != BaseId.None)
+        {
+            var dp = TryDoublePlayPattern(BaseId.Home, BaseId.First, home.BallArrival, ctx);
+            if (dp != null) return dp;
+        }
 
-            float ballArrive = EstimateBallArriveTimeRelative(catchFielder, rec, throwSpeed, catchTime);
+        return null;
+    }
 
-            if (ballArrive < runnerEta)
+    private static List<ThrowStep> TryDoublePlayPattern(
+        BaseId firstBase, 
+        BaseId secondBase, 
+        float firstArrival, 
+        ThrowContext ctx)
+    {
+        var step1 = ctx.CreateThrow(firstBase, firstArrival);
+        if (!step1.HasValue) return null;
+
+        float relayTime = CalculateRelayTime(firstBase, secondBase, firstArrival, ctx);
+        var step2 = ctx.CreateRelayThrow(firstBase, secondBase, relayTime);
+        if (!step2.HasValue) return null;
+
+        return new List<ThrowStep> { step1.Value, step2.Value };
+    }
+
+    private static float CalculateRelayTime(
+        BaseId from, 
+        BaseId to, 
+        float arrivalAtFrom, 
+        ThrowContext ctx)
+    {
+        Vector3 fromPos = ctx.BaseManager.GetBasePosition(from);
+        fromPos.y = 0f;
+        Vector3 toPos = ctx.BaseManager.GetBasePosition(to);
+        toPos.y = 0f;
+
+        float distance = Vector3.Distance(fromPos, toPos);
+        float flightTime = distance / Mathf.Max(0.01f, ctx.ThrowSpeed);
+        float relayDelay = from == BaseId.Home ? 0.4f : 0.3f;
+
+        return arrivalAtFrom + relayDelay + flightTime;
+    }
+
+    // ========== データ構造 ==========
+
+    private struct ThrowCandidate
+    {
+        public BaseId TargetBase;
+        public RunnerType RunnerType;
+        public float BallArrival;
+        public bool IsOut;
+        public float Margin;
+        public float Priority;
+    }
+
+    private class ThrowContext
+    {
+        public List<RunnerAction> RunnerPlans { get; }
+        public Dictionary<BaseId, float> ThrowTimes { get; }
+        public CatchPlan CatchPlan { get; }
+        public BaseManager BaseManager { get; }
+        public Dictionary<PositionType, FielderController> FieldersByPosition { get; }
+        public List<BaseCoverAssign> BaseCovers { get; }
+        public float ThrowSpeed { get; }
+
+        public ThrowContext(
+            List<RunnerAction> runnerPlans,
+            Dictionary<BaseId, float> throwTimes,
+            CatchPlan catchPlan,
+            BaseManager baseManager,
+            Dictionary<PositionType, FielderController> fieldersByPosition,
+            List<BaseCoverAssign> baseCovers,
+            float throwSpeed)
+        {
+            RunnerPlans = runnerPlans;
+            ThrowTimes = throwTimes;
+            CatchPlan = catchPlan;
+            BaseManager = baseManager;
+            FieldersByPosition = fieldersByPosition;
+            BaseCovers = baseCovers;
+            ThrowSpeed = throwSpeed;
+        }
+
+        public FielderController GetFielderAt(BaseId baseId)
+        {
+            BaseCoverAssign cover = BaseCovers.FirstOrDefault(bc => bc.BaseId == baseId);
+            if (cover.Fielder != null)
+                return cover.Fielder;
+
+            return baseId switch
             {
-                decidedBase = baseId;
-                receiver = rec;
-                return true;
-            }
+                BaseId.First => FieldersByPosition.GetValueOrDefault(PositionType.FirstBase),
+                BaseId.Second => FieldersByPosition.GetValueOrDefault(PositionType.SecondBase),
+                BaseId.Third => FieldersByPosition.GetValueOrDefault(PositionType.ThirdBase),
+                BaseId.Home => FieldersByPosition.GetValueOrDefault(PositionType.Catcher),
+                _ => null
+            };
         }
 
-        return false;
-    }
-
-    private static float GetMinEtaTo(BaseId baseId, List<RunnerETA> etas)
-    {
-        float best = float.MaxValue;
-        for (int i = 0; i < etas.Count; i++)
+        public ThrowStep? CreateThrow(BaseId targetBase, float arriveTime)
         {
-            if (etas[i].TargetBase != baseId) continue;
-            if (etas[i].Remaining < best) best = etas[i].Remaining;
-        }
-        return best;
-    }
+            var receiver = GetFielderAt(targetBase);
+            if (receiver == null) return null;
 
-    // いまの基準(相対秒)で「何秒後に到達するか」
-    private static float EstimateBallArriveTimeRelative(
-        FielderController thrower,
-        FielderController receiver,
-        float throwSpeed,
-        float catchTime)
-    {
-        float delaySec = 0f;
-        if (thrower != null && thrower.Data != null)
-            delaySec = Mathf.Max(0, thrower.Data.ThrowDelay) / 1000f;
-
-        float dist = Vector3.Distance(thrower.transform.position, receiver.transform.position);
-        float flight = dist / Mathf.Max(0.01f, throwSpeed);
-
-        // catchTime は「捕球完了」の相対秒（フライなら捕球、ゴロ回収なら回収）
-        // そこから送球モーション(ThrowDelay)→飛行時間
-        return Mathf.Max(0f, catchTime) + delaySec + flight;
-    }
-
-    private static ThrowPlan ToPlan(BaseId baseId)
-    {
-        return baseId switch
-        {
-            BaseId.First => ThrowPlan.First,
-            BaseId.Second => ThrowPlan.Second,
-            BaseId.Third => ThrowPlan.Third,
-            BaseId.Home => ThrowPlan.Home,
-            _ => ThrowPlan.First
-        };
-    }
-
-    private static ThrowStep ThrowToFielder(
-        FielderController thrower,
-        FielderController catcher,
-        ThrowPlan plan,
-        float throwSpeed,
-        float startTime)
-    {
-        float dist = Vector3.Distance(thrower.transform.position, catcher.transform.position);
-        float flight = dist / Mathf.Max(0.01f, throwSpeed);
-
-        float delaySec = 0f;
-        if (thrower != null && thrower.Data != null)
-            delaySec = Mathf.Max(0, thrower.Data.ThrowDelay) / 1000f;
-
-        return new ThrowStep
-        {
-            Plan = plan,
-            TargetPosition = catcher.transform.position,
-            ThrowerFielder = thrower,
-            ReceiverFielder = catcher,
-            ThrowSpeed = throwSpeed,
-            // 「相対秒」で統一
-            ArriveTime = Mathf.Max(0f, startTime) + delaySec + flight
-        };
-    }
-
-    private static ThrowStep CalculateCutoffThrowPlan(
-        FielderController catchFielder,
-        Dictionary<PositionType, FielderController> fielders,
-        float throwSpeed,
-        float catchTime)
-    {
-        FielderController nearestInfielder = null;
-        float nearestDistance = float.MaxValue;
-
-        foreach (var key in fielders)
-        {
-            FielderController fielder = key.Value;
-            if (fielder == null) continue;
-            if (fielder.Data == null) continue;
-            if (fielder.Data.PositionGroupType != PositionGroupType.Infield) continue;
-
-            float distance = Vector3.Distance(catchFielder.transform.position, fielder.transform.position);
-            if (distance < nearestDistance)
+            return new ThrowStep
             {
-                nearestDistance = distance;
-                nearestInfielder = fielder;
-            }
+                Plan = ConvertToPlan(targetBase),
+                TargetPosition = BaseManager.GetBasePosition(targetBase),
+                ThrowerFielder = CatchPlan.Catcher,
+                ReceiverFielder = receiver,
+                ThrowSpeed = ThrowSpeed,
+                ArriveTime = arriveTime
+            };
         }
 
-        if (nearestInfielder == null)
+        public ThrowStep? CreateRelayThrow(BaseId fromBase, BaseId toBase, float arriveTime)
         {
-            // 内野が取れないなら投手へ
-            if (fielders.TryGetValue(PositionType.Pitcher, out var pitcher) && pitcher != null)
-                nearestInfielder = pitcher;
-        }
+            var thrower = GetFielderAt(fromBase);
+            var receiver = GetFielderAt(toBase);
+            if (thrower == null || receiver == null) return null;
 
-        return ThrowToFielder(catchFielder, nearestInfielder, ThrowPlan.Cutoff, throwSpeed, catchTime);
-    }
-
-    private static FielderController FindNearBaseFielder(
-        Dictionary<PositionType, FielderController> fielders,
-        FielderController catcher,
-        Vector3 basePos)
-    {
-        float minDistance = float.MaxValue;
-        FielderController nearFielder = null;
-
-        foreach (var key in fielders)
-        {
-            var fielder = key.Value;
-            if (fielder == null) continue;
-            if (fielder == catcher) continue;
-
-            float distance = Vector3.Distance(fielder.transform.position, basePos);
-            if (distance < minDistance)
+            return new ThrowStep
             {
-                minDistance = distance;
-                nearFielder = fielder;
-            }
+                Plan = ConvertToPlan(toBase),
+                TargetPosition = BaseManager.GetBasePosition(toBase),
+                ThrowerFielder = thrower,
+                ReceiverFielder = receiver,
+                ThrowSpeed = ThrowSpeed,
+                ArriveTime = arriveTime
+            };
         }
 
-        return nearFielder;
+        public ThrowStep CreateReturn()
+        {
+            var pitcher = FieldersByPosition.GetValueOrDefault(PositionType.Pitcher);
+
+            return new ThrowStep
+            {
+                Plan = ThrowPlan.Return,
+                TargetPosition = pitcher?.transform.position ?? Vector3.zero,
+                ThrowerFielder = CatchPlan.Catcher,
+                ReceiverFielder = pitcher,
+                ThrowSpeed = ThrowSpeed * 0.7f,
+                ArriveTime = 0f
+            };
+        }
+
+        private static ThrowPlan ConvertToPlan(BaseId baseId)
+        {
+            return baseId switch
+            {
+                BaseId.First => ThrowPlan.First,
+                BaseId.Second => ThrowPlan.Second,
+                BaseId.Third => ThrowPlan.Third,
+                BaseId.Home => ThrowPlan.Home,
+                _ => ThrowPlan.Return
+            };
+        }
     }
 }

@@ -71,7 +71,7 @@ public class InningManager : MonoBehaviour
     {
         _atBatResetEvent.RaiseEvent();
         _isPlayEnd = false;
-        await UniTask.WaitUntil(() => Input.GetMouseButtonDown(0));
+        //await UniTask.WaitUntil(() => Input.GetMouseButtonDown(0));
         StartPitchAsync().Forget();
 
     }

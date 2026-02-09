@@ -7,7 +7,7 @@ public class CameraDirector : MonoBehaviour
     [Header("Events")]
     [SerializeField] private OnBattingResultEvent _battingResultEvent;
     [SerializeField] private OnAtBatResetEvent _atBatResetEvent;
-    [SerializeField] private OnDefensePlayFinishedEvent _defensePlayFinishedEvent;
+    [SerializeField] private OnDefenseCompletedEvent _defensePlayFinishedEvent;
     [SerializeField] private OnAllRunnersStopped _allRunnersStoppedEvent;
     [SerializeField] private OnHomeRunRunnerCompleted _homeRunRunnerCompletedEvent;
     [SerializeField] private OnRunnerReachedHomeThisPlay _runnerReachedHomeThisPlayEvent;
@@ -47,23 +47,23 @@ public class CameraDirector : MonoBehaviour
 
     private void OnEnable()
     {
-        _battingResultEvent?.UnregisterListener(OnBattingResult);
-        _battingResultEvent?.RegisterListener(OnBattingResult);
+        if (_battingResultEvent == null) Debug.LogError("OnBattingResultEvent Ç™ñ¢ê›íË");
+        else _battingResultEvent?.RegisterListener(OnBattingResult);
 
-        _atBatResetEvent?.UnregisterListener(OnAtBatReset);
-        _atBatResetEvent?.RegisterListener(OnAtBatReset);
+        if (_atBatResetEvent == null) Debug.LogError("OnAtBatResetEvent Ç™ñ¢ê›íË");
+        else _atBatResetEvent?.RegisterListener(OnAtBatReset);
 
-        _defensePlayFinishedEvent?.UnregisterListener(OnDefenseFinished);
-        _defensePlayFinishedEvent?.RegisterListener(OnDefenseFinished);
+        if (_defensePlayFinishedEvent == null) Debug.LogError("OnDefensePlayFinishedEvent Ç™ñ¢ê›íË");
+        else _defensePlayFinishedEvent?.RegisterListener(OnDefenseFinished);
 
-        _allRunnersStoppedEvent?.UnregisterListener(OnAllRunnersStopped);
-        _allRunnersStoppedEvent?.RegisterListener(OnAllRunnersStopped);
+        if (_allRunnersStoppedEvent == null) Debug.LogError("OnAllRunnersStoppedEvent Ç™ñ¢ê›íË");
+        else _allRunnersStoppedEvent?.RegisterListener(OnAllRunnersStopped);
 
-        _runnerReachedHomeThisPlayEvent?.UnregisterListener(OnRunnerReachedHomeThisPlay);
-        _runnerReachedHomeThisPlayEvent?.RegisterListener(OnRunnerReachedHomeThisPlay);
+        if (_runnerReachedHomeThisPlayEvent == null) Debug.LogError("OnRunnerReachedHomeThisPlayEvent Ç™ñ¢ê›íË");
+        else _runnerReachedHomeThisPlayEvent?.RegisterListener(OnRunnerReachedHomeThisPlay);
 
-        _homeRunRunnerCompletedEvent?.UnregisterListener(OnHomeRunCompleted);
-        _homeRunRunnerCompletedEvent?.RegisterListener(OnHomeRunCompleted);
+        if (_homeRunRunnerCompletedEvent == null) Debug.LogError("OnHomeRunRunnerCompletedEvent Ç™ñ¢ê›íË");
+        else _homeRunRunnerCompletedEvent?.RegisterListener(OnHomeRunCompleted);
     }
 
     private void OnDisable()
@@ -141,7 +141,7 @@ public class CameraDirector : MonoBehaviour
         TryEndPlayIfCompleted();
     }
 
-    private void OnDefenseFinished(DefensePlayOutcome outcome)
+    private void OnDefenseFinished()
     {
         if (!_isPlayActive) return;
 

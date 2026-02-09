@@ -12,5 +12,6 @@ public class FielderData
     public float MoveSpeed;        // m/s
     public float ReactionTime;     // •b
     public float CatchHeight;      // •ß‹…‰Â”\‚‚³
+    public float ThrowSpeed;       // m/s
 }
 

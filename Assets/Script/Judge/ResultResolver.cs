@@ -1,7 +1,8 @@
 using Cysharp.Threading.Tasks;
+using System.Collections.Generic;
 using UnityEngine;
 
-public class ResultResolver : MonoBehaviour,IInitializable
+public class ResultResolver : MonoBehaviour, IInitializable
 {
     [SerializeField] private AtBatManager _atBatManager;
 
@@ -9,7 +10,7 @@ public class ResultResolver : MonoBehaviour,IInitializable
     [SerializeField] private OnStrikeJudgeEvent _onStrikeJudgeEvent;
     [SerializeField] private OnBallReachedTargetEvent _ballReachedTargetEvent;
     [SerializeField] private OnFoulBallCompletedEvent _foulBallCompleted;
-    [SerializeField] private OnDefensePlayFinishedEvent _defensePlayFinished;
+    [SerializeField] private OnDefenseCompletedEvent _defensePlayFinished;
     [SerializeField] private OnAllRunnersStopped _onAllRunnersStopped;
     [SerializeField] private OnFinMissSwingEvent _onFinMissSwingEvent;
     [SerializeField] private OnHomeRunRunnerCompleted _onHomeRunRunnerCompleted;
@@ -17,13 +18,12 @@ public class ResultResolver : MonoBehaviour,IInitializable
     private bool _currentIsStrike;
     private bool _hasDefenseResult = false;
     private bool _hasFinRunning = false;
-    private bool _waitingPlay = false;
     private int _scoreThisPlay = 0;
 
     private void Awake()
     {
-        if (_battingBallResult != null) _battingBallResult.RegisterListener(OnBattingResult);
-        else Debug.LogError("OnBattingResultEvent is not assigned in ResultResolver.");
+        //if (_battingBallResult != null) _battingBallResult.RegisterListener(OnBattingResult);
+        //else Debug.LogError("OnBattingResultEvent is not assigned in ResultResolver.");
 
         if (_onStrikeJudgeEvent != null) _onStrikeJudgeEvent.RegisterListener(OnStrikeJudge);
         else Debug.LogError("OnStrikeJudgeEvent is not assigned in ResultResolver.");
@@ -49,7 +49,7 @@ public class ResultResolver : MonoBehaviour,IInitializable
 
     private void OnDestroy()
     {
-        _battingBallResult?.UnregisterListener(OnBattingResult);
+        //_battingBallResult?.UnregisterListener(OnBattingResult);
         _onStrikeJudgeEvent?.UnregisterListener(OnStrikeJudge);
         _ballReachedTargetEvent?.UnregisterListener(OnBallReached);
         _foulBallCompleted?.UnregisterListener(OnFoulCompleted);
@@ -59,25 +59,48 @@ public class ResultResolver : MonoBehaviour,IInitializable
         _onHomeRunRunnerCompleted?.UnregisterListener(OnHomeRunRunnerCompleted);
     }
 
+    public void SetExpectedResult(Dictionary<BaseId, BaseJudgement> judges)
+    {
+        int outCount = 0;
+        _scoreThisPlay = 0;
+        _playOutcome = PlayOutcomeType.Hit;
+        foreach (var judge in judges.Values)
+        {
+            // アウトの数をカウント
+            if (judge.IsOut)
+            {
+                outCount++;
+                _playOutcome = PlayOutcomeType.Out;
+            }
+            // ホームに生還したランナーをカウント
+            if (!judge.IsOut && judge.TargetBase == BaseId.Home)
+            {
+                _scoreThisPlay++;
+            }
+        }
+
+        WaitForPlayCompletionAsync().Forget();
+    }
+
     /// <summary>
     /// バッティングの結果が出たとき
     /// </summary>
     /// <param name="result"></param>
-    private void OnBattingResult(BattingBallResult result)
-    {
-        if (result.BallType == BattingBallType.Foul) return;
-        if (result.BallType == BattingBallType.Miss) return;
+    //private void OnBattingResult(BattingBallResult result)
+    //{
+    //    if (result.BallType == BattingBallType.Foul) return;
+    //    if (result.BallType == BattingBallType.Miss) return;
 
-        if (result.BallType == BattingBallType.HomeRun) return;
+    //    if (result.BallType == BattingBallType.HomeRun) return;
 
-        if (_waitingPlay) return;
-        _waitingPlay = true;
+    //    if (_waitingPlay) return;
+    //    _waitingPlay = true;
 
-        _hasDefenseResult = false;
-        _hasFinRunning = false;
+    //    _hasDefenseResult = false;
+    //    _hasFinRunning = false;
 
-        WaitForPlayCompletionAsync().Forget();
-    }
+    //    WaitForPlayCompletionAsync().Forget();
+    //}
 
     private void OnHomeRunRunnerCompleted(int runnerCount)
     {
@@ -90,9 +113,9 @@ public class ResultResolver : MonoBehaviour,IInitializable
     {
         // 守備、走塁が完了するまで待機
         await UniTask.WaitUntil(() => _hasDefenseResult && _hasFinRunning);
+        Debug.Log("守備・走塁完了検出");
         _hasDefenseResult = false;
         _hasFinRunning = false;
-        _waitingPlay = false;
         NotifyPitchOutcomeResolved();
     }
 
@@ -147,13 +170,6 @@ public class ResultResolver : MonoBehaviour,IInitializable
     private void OnFinRunning(RunningSummary summary)
     {
         Debug.Log($"All Runners Stopped");
-        _scoreThisPlay = 0;
-        foreach (var run in summary.States)
-        {
-            _scoreThisPlay += run.ReachedHomeThisPlay ? 1 : 0;
-            if (run.IsOutThisPlay) _playOutcome = PlayOutcomeType.Out;
-            Debug.Log($"Runner from {run.RunnerType} 最終ベース {run.EndBase}, 進塁数: {run.AdvancedBases }");
-        }
         _hasFinRunning = true;
     }
 
@@ -161,10 +177,9 @@ public class ResultResolver : MonoBehaviour,IInitializable
     /// 守備プレイが完了したとき
     /// </summary>
     /// <param name="outcome"></param>
-    private void OnDefensFinished(DefensePlayOutcome outcome)
+    private void OnDefensFinished()
     {
-        Debug.Log($"Defense Play Finished: {(outcome.IsOut ? "Out" : "Hit")}");
-        _playOutcome = outcome.IsOut ? PlayOutcomeType.Out : PlayOutcomeType.Hit;
+        Debug.Log("Defense Play Finished");
         _hasDefenseResult = true;
     }
 
@@ -182,7 +197,6 @@ public class ResultResolver : MonoBehaviour,IInitializable
         _currentIsStrike = false;
         _hasDefenseResult = false;
         _hasFinRunning = false;
-        _waitingPlay = false;
         _scoreThisPlay = 0;
     }
 }
