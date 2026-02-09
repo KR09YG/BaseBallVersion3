@@ -6,7 +6,6 @@ using Cysharp.Threading.Tasks;
 public class BattingBallMove : BallMoveTrajectory
 {
     [Header("イベント")]
-    [SerializeField] private OnBattingBallTrajectoryEvent _trajectoryEvent;
     [SerializeField] private OnBattingResultEvent _resultEvent;
     [SerializeField] private OnDefenderCatchEvent _defenderCatchEvent;
     [SerializeField] private OnFoulBallCompletedEvent _foulBallCompletedEvent;
@@ -24,9 +23,6 @@ public class BattingBallMove : BallMoveTrajectory
 
     private void OnEnable()
     {
-        if (_trajectoryEvent != null)
-            _trajectoryEvent.RegisterListener(OnTrajectoryReceived);
-
         if (_resultEvent != null)
             _resultEvent.RegisterListener(OnResultReceived);
 
@@ -36,9 +32,6 @@ public class BattingBallMove : BallMoveTrajectory
 
     private void OnDisable()
     {
-        if (_trajectoryEvent != null)
-            _trajectoryEvent.UnregisterListener(OnTrajectoryReceived);
-
         if (_resultEvent != null)
             _resultEvent.UnregisterListener(OnResultReceived);
 
@@ -64,30 +57,12 @@ public class BattingBallMove : BallMoveTrajectory
     }
 
     /// <summary>
-    /// 軌道受信
-    /// </summary>
-    private void OnTrajectoryReceived(List<Vector3> trajectory)
-    {
-        if (trajectory == null || trajectory.Count < 2)
-        {
-            Debug.LogWarning("[BattingBall] 軌道が無効");
-            return;
-        }
-
-        _trajectory = trajectory;
-        _elapsedTime = 0f;
-        _isMoving = false;
-        _hasLanded = false;
-
-        transform.position = _trajectory[0];
-    }
-
-    /// <summary>
     /// 打撃結果受信
     /// </summary>
     private void OnResultReceived(BattingBallResult result)
     {
         _result = result;
+        _trajectory = result.TrajectoryPoints;
 
         if (result.BallType == BattingBallType.Miss)
             return;
@@ -102,6 +77,12 @@ public class BattingBallMove : BallMoveTrajectory
         {
             _ = WaitFoulBallAsync();
         }
+
+        _elapsedTime = 0f;
+        _isMoving = false;
+        _hasLanded = false;
+
+        transform.position = _trajectory[0];
 
         StartMoving();
     }

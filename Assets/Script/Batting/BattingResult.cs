@@ -1,4 +1,5 @@
 ﻿using UnityEngine;
+using System.Collections.Generic;
 
 /// <summary>
 /// 打球結果
@@ -19,6 +20,8 @@ public class BattingBallResult
     public bool IsSweetSpot;
     public float Timing;
 
+    // 弾道リスト
+    public List<Vector3> TrajectoryPoints = new List<Vector3>();
     // 結果（シンプル化）
     public BattingBallType BallType; // Miss/Foul/Hit/HomeRun/GroundBall
     public Vector3 LandingPosition;
