@@ -58,6 +58,7 @@ public class DefenseManager : MonoBehaviour, IInitializable
     private void OnDestroy()
     {
         _onBallSpawned?.UnregisterListener(OnBallSpawned);
+        _onDefenderCatch?.UnregisterListener(OnBallCatchedFielder);
         _defenseCts?.Cancel();
         _defenseCts?.Dispose();
     }

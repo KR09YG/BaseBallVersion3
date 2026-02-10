@@ -86,6 +86,7 @@ public class FielderController : MonoBehaviour
             direction.y = 0f;
             if (direction.sqrMagnitude > 0.01f)
             {
+                _defenderCatchEvent?.RaiseEvent(this);
                 transform.rotation = Quaternion.LookRotation(direction);
             }
 
@@ -96,7 +97,6 @@ public class FielderController : MonoBehaviour
         transform.position = basePosition;
         State = FielderState.Waiting;
 
-        _defenderCatchEvent?.RaiseEvent(this);
     }
 
     /// <summary>

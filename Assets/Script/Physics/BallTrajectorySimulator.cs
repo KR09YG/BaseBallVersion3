@@ -1,5 +1,4 @@
-﻿using NUnit.Framework;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
@@ -138,7 +137,7 @@ internal static class BallTrajectorySimulator
                     break;
             }
 
-            // StopAtZ
+            // 指定Z座標で停止
             if (config.StopAtZ.HasValue)
             {
                 float stopZ = config.StopAtZ.Value;

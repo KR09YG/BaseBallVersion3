@@ -106,8 +106,6 @@ public class BattingBallMove : BallMoveTrajectory
     /// </summary>
     private void CaughtByFielder(FielderController fielder)
     {
-        if (_hasLanded) return;
-
         _isMoving = false;
         _hasLanded = true;
     }
