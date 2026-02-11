@@ -22,10 +22,7 @@ public class BattingBallResult
 
     // 弾道リスト
     public List<Vector3> TrajectoryPoints = new List<Vector3>();
-    // 結果（シンプル化）
-    public BattingBallType BallType; // Miss/Foul/Hit/HomeRun/GroundBall
+    public BattingBallType BallType;
     public Vector3 LandingPosition;
     public float Distance;
-
-    // 削除: IsFoul, IsHit, FirstGroundLayer
 }

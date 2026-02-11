@@ -11,10 +11,12 @@ public class Runner : MonoBehaviour
 {
     [SerializeField] private RunnerData _data;
     [SerializeField] private BaseManager _baseManager;
+    [SerializeField] private Animator _animator;
+    [SerializeField] private RuntimeAnimatorController _runnerAnimatorController;
 
     public RunnerData Data => _data;
-    public RunnerType Type => _data?.Type ?? RunnerType.Batter;
-    public float SecondsPerBase => _data?.SecondsPerBase ?? 3.8f;
+    public RunnerType Type => _data.Type;
+    public float SecondsPerBase => _data.SecondsPerBase;
 
     public BaseId CurrentBase { get; private set; }
     public BaseId TargetBase { get; private set; }
@@ -36,6 +38,7 @@ public class Runner : MonoBehaviour
         CurrentBase = baseId;
         TargetBase = BaseId.None;
         IsRunning = false;
+        _animator.SetBool("IsRunning", false);
         transform.position = pos;
     }
 
@@ -58,6 +61,16 @@ public class Runner : MonoBehaviour
     /// </summary>
     public void AnimEvent_StartRunning()
     {
+        if (_runnerAnimatorController != null)
+        {
+            _animator.applyRootMotion = false;
+            _animator.runtimeAnimatorController = _runnerAnimatorController;
+        }
+        else
+        {
+            Debug.LogWarning($"[Runner] {_data.Type} RunnerAnimatorControllerが設定されていません");
+        }
+
         if (_plannedTarget == BaseId.None)
         {
             Debug.LogWarning($"[Runner] {Type} 走塁計画がありません");
@@ -206,6 +219,7 @@ public class Runner : MonoBehaviour
         Vector3 startPos = transform.position;
         TargetBase = nextBase;
         IsRunning = true;
+        _animator.SetBool("IsRunning", true);
 
         float totalTime = SecondsPerBase;
         float elapsed = 0f;
@@ -236,5 +250,6 @@ public class Runner : MonoBehaviour
         CurrentBase = nextBase;
         TargetBase = BaseId.None;
         IsRunning = false;
+        _animator.SetBool("IsRunning", false);
     }
 }

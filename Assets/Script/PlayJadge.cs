@@ -71,7 +71,26 @@ public class PlayJudge : MonoBehaviour, IInitializable
         ResetForReuse();
 
         // ファウル・ホームランは既存Managerに任せる
-        if (result.BallType == BattingBallType.Foul) return;
+        if (result.BallType == BattingBallType.Foul)
+        {
+            RunnerAction action = new RunnerAction
+            {
+                RunnerType = RunnerType.Batter,
+                StartBase = BaseId.None,
+                TargetBase = BaseId.First,
+                StartDelay = 0f
+            };
+            _runnerActions.Add(action);
+
+            _runnerManager.ExecuteRunningPlan(new RunningPlan
+            {
+                IsHomerun = false,
+                RunnerActions = _runnerActions,
+                ExpectedResults = new Dictionary<BaseId, BaseJudgement>()
+            });
+            return;
+        }
+
         // ホームランの場合はRunnerManagerにRunnerを走らせる
         if (result.BallType == BattingBallType.HomeRun)
         {
@@ -268,6 +287,7 @@ public class PlayJudge : MonoBehaviour, IInitializable
 
     private PlaySimulationResult FlayJudgement(CatchPlan catchPlan, List<BaseCoverAssign> baseCovers)
     {
+        Debug.Log("[PlayJudge] フライ捕球シミュレーション");
         var defensePlan = new DefensePlan
         {
             CatchPlan = catchPlan,
@@ -595,24 +615,28 @@ public class PlayJudge : MonoBehaviour, IInitializable
         List<RunnerPlan> runnerPlans,
         Dictionary<BaseId, float> throwTimes)
     {
-        var judgements = _baseJudges;
+        Dictionary<BaseId,BaseJudgement> judgements = _baseJudges;
 
         if (_runnerManager == null) return judgements;
 
+        // ランナーごとに判定
         foreach (var plan in runnerPlans)
         {
-            var targetBase = plan.MaxReachableBase;
+            // 進塁先がない場合は判定不要
+            BaseId targetBase = plan.MaxReachableBase;
             if (targetBase == BaseId.None) continue;
 
+            // 進塁先ごとに判定
             int basesToRun = (int)targetBase - (int)plan.StartBase;
             if (plan.StartBase == BaseId.None) basesToRun = (int)targetBase;
-
+            // ランナー到達時間を計算
             float runnerSpeed = _runnerManager.GetRunnerSpeed(plan.RunnerType);
             float runnerArriveTime = basesToRun * runnerSpeed + plan.StartDelay;
 
+            // ボール到達時間を取得
             if (throwTimes.TryGetValue(targetBase, out float ballArriveTime))
             {
-                // ✅ 修正: ランナー到達時間 >= 送球到達時間 ならアウト（マージンなし、厳密判定）
+                // アウト/セーフ判定
                 bool isOut = runnerArriveTime >= ballArriveTime;
 
                 judgements[targetBase] = new BaseJudgement

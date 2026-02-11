@@ -2,11 +2,6 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-/// <summary>
-/// ランナーの動きを管理
-/// PlayJudgeから計画を受け取って、ランナーを走らせる
-/// バッターはAnimationEvent待ち、既存ランナーは即実行
-/// </summary>
 public class RunnerManager : MonoBehaviour, IInitializable
 {
     [SerializeField] private List<Runner> _runners;
@@ -20,18 +15,22 @@ public class RunnerManager : MonoBehaviour, IInitializable
     private Dictionary<RunnerType, Runner> _runnersByType;
     private DefenseSituation _situation;
 
-    private int _runningCount = 0;
     private HashSet<RunnerType> _reachedHomeNotified = new HashSet<RunnerType>();
     private Dictionary<Runner, BaseId> _startBase = new Dictionary<Runner, BaseId>();
+
     private bool _isHomerun = false;
     private int _scoreRunnersCount = 0;
+
+    // ★今回のプレイで完了を待つ対象
+    private readonly HashSet<RunnerType> _pending = new HashSet<RunnerType>();
+    private bool _finishedNotified = false; // 多重通知防止
 
     public void OnInitialized(DefenseSituation situation)
     {
         _situation = situation;
         _isHomerun = false;
-        _runnersByType = new Dictionary<RunnerType, Runner>();
 
+        _runnersByType = new Dictionary<RunnerType, Runner>();
         foreach (var runner in _runners)
         {
             if (runner?.Data != null)
@@ -44,9 +43,10 @@ public class RunnerManager : MonoBehaviour, IInitializable
 
     private void ResetPlayState()
     {
-        _runningCount = 0;
         _reachedHomeNotified.Clear();
         _startBase.Clear();
+        _pending.Clear();
+        _finishedNotified = false;
 
         foreach (var runner in _runners)
         {
@@ -55,49 +55,40 @@ public class RunnerManager : MonoBehaviour, IInitializable
         }
     }
 
-    // 初期配置
     private void SetupBaseRunners(DefenseSituation situation)
     {
         if (situation == null) return;
 
-        // 各塁にランナーを配置
-        if (situation.OnFirstBase)
-        {
-            var runner = GetRunner(RunnerType.First);
-            if (runner != null)
-            {
-                runner.SetActive(true);
-                runner.SetCurrentBase(_baseManager.GetBasePosition(BaseId.First), BaseId.First);
-            }
-        }
+        SetupRunner(GetRunner(RunnerType.First), BaseId.First, situation.OnFirstBase);
+        SetupRunner(GetRunner(RunnerType.Second), BaseId.Second, situation.OnSecondBase);
+        SetupRunner(GetRunner(RunnerType.Third), BaseId.Third, situation.OnThirdBase);
 
-        if (situation.OnSecondBase)
-        {
-            var runner = GetRunner(RunnerType.Second);
-            if (runner != null)
-            {
-                runner.SetActive(true);
-                runner.SetCurrentBase(_baseManager.GetBasePosition(BaseId.Second), BaseId.Second);
-            }
-        }
-
-        if (situation.OnThirdBase)
-        {
-            var runner = GetRunner(RunnerType.Third);
-            if (runner != null)
-            {
-                runner.SetActive(true);
-                runner.SetCurrentBase(_baseManager.GetBasePosition(BaseId.Third), BaseId.Third);
-            }
-        }
-
-        // バッター
         var batter = GetRunner(RunnerType.Batter);
         if (batter != null)
         {
             batter.SetActive(true);
             batter.SetCurrentBase(batter.transform.position, BaseId.None);
         }
+    }
+
+    private void SetupRunner(Runner runner, BaseId startBase, bool isActive)
+    {
+        if (runner == null) return;
+
+        if (!isActive)
+        {
+            runner.SetActive(false);
+            return;
+        }
+
+        runner.SetActive(true);
+        Vector3 pos = _baseManager.GetBasePosition(startBase);
+        runner.SetCurrentBase(pos, startBase);
+
+        // Y固定でホーム方向へ（寝転がり防止）
+        var look = _baseManager.GetBasePosition(BaseId.Home);
+        look.y = runner.transform.position.y;
+        runner.transform.LookAt(look);
     }
 
     public Runner GetRunner(RunnerType type)
@@ -109,31 +100,34 @@ public class RunnerManager : MonoBehaviour, IInitializable
     public float GetRunnerSpeed(RunnerType type)
     {
         var runner = GetRunner(type);
-        return runner?.SecondsPerBase ?? 3.8f;
+        return runner.SecondsPerBase;
     }
 
-    /// <summary>
-    /// PlayJudgeから呼ばれる走塁実行
-    /// </summary>
     public void ExecuteRunningPlan(RunningPlan plan)
     {
         _scoreRunnersCount = 0;
         _isHomerun = plan.IsHomerun;
 
-        if (_isHomerun)
-        {
-            Debug.Log("[RunnerManager] ホームラン走塁計画");
-            _scoreRunnersCount = plan.RunnerActions.Count;
-        }
+        _reachedHomeNotified.Clear();
+        _pending.Clear();
+        _finishedNotified = false;
 
         if (plan.RunnerActions == null || plan.RunnerActions.Count == 0)
         {
-            Debug.Log("[RunnerManager] 走塁なし");
             _onAllRunnersStopped?.RaiseEvent(BuildRunningSummary());
             return;
         }
 
-        _reachedHomeNotified.Clear();
+        if (_isHomerun)
+        {
+            _scoreRunnersCount = plan.RunnerActions.Count;
+        }
+
+        // ★今回待つ対象を登録（RunnerType重複もここで弾ける）
+        foreach (var action in plan.RunnerActions)
+        {
+            _pending.Add(action.RunnerType);
+        }
 
         foreach (var action in plan.RunnerActions)
         {
@@ -141,33 +135,30 @@ public class RunnerManager : MonoBehaviour, IInitializable
             if (runner == null)
             {
                 Debug.LogError($"[RunnerManager] Runner not found: {action.RunnerType}");
+                // 見つからないなら「完了扱い」にして詰まらないようにする
+                MarkCompleted(action.RunnerType);
                 continue;
             }
 
-            // 開始位置を記録
             _startBase[runner] = action.StartBase;
 
-            // バッターの場合はAnimationEvent待ち
             if (action.RunnerType == RunnerType.Batter)
             {
                 SetupBatterRun(runner, action);
             }
             else
             {
-                // 既存ランナーは即実行
                 ExecuteRunnerActionAsync(runner, action).Forget();
             }
         }
+
+        // もし全員「即完了」だった場合（通常はないが安全）
+        TryFinishIfAllCompleted();
     }
 
-    /// <summary>
-    /// バッターの走塁計画をセット（AnimationEventで実行される）
-    /// </summary>
     private void SetupBatterRun(Runner batter, RunnerAction action)
     {
         bool isHomeRun = (action.TargetBase == BaseId.Home && action.StartBase == BaseId.None);
-
-        _runningCount++;
 
         batter.SetPlannedRun(
             action.TargetBase,
@@ -175,66 +166,48 @@ public class RunnerManager : MonoBehaviour, IInitializable
             isHomeRun,
             onCompleted: () =>
             {
-                OnRunnerCompleted(batter, action.TargetBase);
+                NotifyReachedHomeIfNeeded(batter);
+                MarkCompleted(RunnerType.Batter);
             });
-
-        Debug.Log($"[RunnerManager] バッター走塁計画セット: → {action.TargetBase}" +
-                  $"{(isHomeRun ? " (ホームラン)" : "")} (AnimationEvent待ち)");
     }
 
-    /// <summary>
-    /// 既存ランナーの走塁実行
-    /// </summary>
     private async UniTaskVoid ExecuteRunnerActionAsync(Runner runner, RunnerAction action)
     {
-        _runningCount++;
-
         try
         {
-            Debug.Log($"[RunnerManager] {runner.Type} 走塁開始: {action.StartBase} → {action.TargetBase}");
-
             await runner.RunToBaseSequentiallyAsync(
                 action.StartBase,
                 action.TargetBase,
                 destroyCancellationToken,
                 action.StartDelay);
 
-            OnRunnerCompleted(runner, action.TargetBase);
+            NotifyReachedHomeIfNeeded(runner);
+            MarkCompleted(runner.Type);
         }
-        catch (System.OperationCanceledException)
+        catch
         {
-            Debug.Log($"[RunnerManager] {runner.Type} 走塁キャンセル");
-            _runningCount--;
-        }
-        catch (System.Exception ex)
-        {
-            Debug.LogError($"[RunnerManager] {runner.Type} 走塁エラー: {ex.Message}");
-            _runningCount--;
+            // 「時間保険なし」方針でも、例外で詰まるのは避けたいので完了扱い
+            MarkCompleted(runner.Type);
         }
     }
 
-    private void OnRunnerCompleted(Runner runner, BaseId targetBase)
+    private void MarkCompleted(RunnerType type)
     {
-        _runningCount--;
-        if (_runningCount < 0) _runningCount = 0;
+        if (!_pending.Remove(type)) return; // 既に完了してた
+        TryFinishIfAllCompleted();
+    }
 
-        Debug.Log($"[RunnerManager] {runner.Type} 走塁完了 → {runner.CurrentBase}");
+    private void TryFinishIfAllCompleted()
+    {
+        if (_finishedNotified) return;
+        if (_pending.Count != 0) return;
 
-        // ホーム到達通知
-        NotifyReachedHomeIfNeeded(runner);
+        _finishedNotified = true;
 
-        // 全員完了チェック
-        if (_runningCount == 0)
-        {
-            Debug.Log("[RunnerManager] 全ランナー走塁完了");
-            _onAllRunnersStopped?.RaiseEvent(BuildRunningSummary());
-            // ホームラン時の特別処理
-            if (_isHomerun)
-            {
-                _onHomeRunRunnerCompleted?.RaiseEvent(_scoreRunnersCount);
-                Debug.Log("[RunnerManager] ホームランランナー走塁完了通知");
-            }
-        }
+        _onAllRunnersStopped?.RaiseEvent(BuildRunningSummary());
+
+        if (_isHomerun)
+            _onHomeRunRunnerCompleted?.RaiseEvent(_scoreRunnersCount);
     }
 
     private void NotifyReachedHomeIfNeeded(Runner runner)
@@ -242,14 +215,11 @@ public class RunnerManager : MonoBehaviour, IInitializable
         if (runner == null) return;
 
         RunnerType type = runner.Type;
-
         if (_reachedHomeNotified.Contains(type)) return;
         if (runner.CurrentBase != BaseId.Home) return;
 
         _reachedHomeNotified.Add(type);
         _onRunnerReachedHomeThisPlay?.RaiseEvent(type);
-
-        Debug.Log($"[RunnerManager] {type} がホームに到達");
     }
 
     private RunningSummary BuildRunningSummary()
@@ -264,7 +234,6 @@ public class RunnerManager : MonoBehaviour, IInitializable
             BaseId endBase = runner.CurrentBase;
 
             int advanced = CalcAdvanced(startBase, endBase);
-            bool reachedHome = (endBase == BaseId.Home);
 
             list.Add(new RunnerFinalState
             {
@@ -272,8 +241,8 @@ public class RunnerManager : MonoBehaviour, IInitializable
                 StartBase = startBase,
                 EndBase = endBase,
                 AdvancedBases = advanced,
-                ReachedHomeThisPlay = reachedHome,
-                IsOutThisPlay = false // TODO: アウト判定の実装
+                ReachedHomeThisPlay = (endBase == BaseId.Home),
+                IsOutThisPlay = false
             });
         }
 

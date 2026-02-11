@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using Cysharp.Threading.Tasks;
 using System.Threading;
+using UnityEngine.UIElements;
 
 public class PitchController : MonoBehaviour, IInitializable
 {
@@ -29,11 +30,15 @@ public class PitchController : MonoBehaviour, IInitializable
     [SerializeField] private OnBallSpawnedEvent _ballSpawnedEvent;
     [SerializeField] private OnStartPitchEvent _startPitchEvent;
     [SerializeField] private OnBallReachedTargetEvent _ballReachedTargetEvent;
+    [SerializeField] private OnAtBatResetEvent _atBatResetEvent;
 
     private PitchBallMove _ball;
     private List<Vector3> _currentTrajectory;
     private bool _isPitching = false;
     private CancellationTokenSource _cancellationTokenSource;
+    private Quaternion _initRotation;
+    private Vector3 _initPosition;
+    
 
     private void Awake()
     {
@@ -41,7 +46,11 @@ public class PitchController : MonoBehaviour, IInitializable
         else Debug.LogWarning("[PitchController] StartPitchEventが設定されていません");
         if (_ballReachedTargetEvent != null) _ballReachedTargetEvent.RegisterListener(OnBallReachedTarget);
         else Debug.LogWarning("[PitchController] BallReachedTargetEventが設定されていません");
+        if (_atBatResetEvent != null) _atBatResetEvent.RegisterListener(OnAtBatReset);
+        else Debug.LogWarning("[PitchController] AtBatResetEventが設定されていません");
 
+        _initRotation = transform.rotation;
+        _initPosition = transform.position;
     }
 
     private void Start()
@@ -78,7 +87,22 @@ public class PitchController : MonoBehaviour, IInitializable
         if (_pitcherAnimator != null)
         {
             _pitcherAnimator.SetTrigger(_idleTriggerName);
+            _pitcherAnimator.applyRootMotion = true;
         }
+        transform.rotation = _initRotation;
+        transform.position = _initPosition;
+    }
+
+    private void OnAtBatReset()
+    {
+        if (_pitcherAnimator != null)
+        {
+            _pitcherAnimator.Play("Idle");
+            _pitcherAnimator.applyRootMotion = true;
+        }
+        transform.rotation = _initRotation;
+        transform.position = _initPosition;
+        _isPitching = false;
     }
 
     private void CreateBall()
@@ -200,6 +224,8 @@ public class PitchController : MonoBehaviour, IInitializable
 
         // メインスレッドに戻る
         await UniTask.SwitchToMainThread();
+
+        Debug.Log($"{_currentTrajectory.Count}個の軌道ポイントを計算しました");
 
         if (_enableDebugLogs)
         {

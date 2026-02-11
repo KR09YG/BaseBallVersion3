@@ -7,6 +7,7 @@ public class BattingAnimationController : MonoBehaviour, IInitializable
     [Header("参照")]
     [SerializeField] private Animator _animator;
     [SerializeField] private BattingIKController _ikController;
+    [SerializeField] private RuntimeAnimatorController _battingAnimController;
 
     [Header("イベント")]
     [SerializeField] private OnPitchBallReleaseEvent _ballReleaseEvent;
@@ -134,6 +135,8 @@ public class BattingAnimationController : MonoBehaviour, IInitializable
     {
         if (_enableDebugLogs) Debug.Log("[BattingAnimation] OnInitialized");
 
+        _animator.applyRootMotion = true;
+        _animator.runtimeAnimatorController = _overrideController;
         transform.position = _initialPos;
         transform.eulerAngles = _initialRot;
 
@@ -144,6 +147,9 @@ public class BattingAnimationController : MonoBehaviour, IInitializable
     {
         _sequenceId++;
         _activeSeq = _sequenceId;
+
+        _animator.applyRootMotion = true;
+        _animator.runtimeAnimatorController = _overrideController;
 
         if (_enableDebugLogs) Debug.Log($"[BattingAnimation] OnAtBatReset (seq={_activeSeq})");
 

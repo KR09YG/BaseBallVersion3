@@ -17,6 +17,9 @@ public class DefenseManager : MonoBehaviour, IInitializable
     [Header("Settings")]
     [SerializeField] private float _catchWaitTimeout = 5f;  // 捕球待機タイムアウト
     [SerializeField] private float _throwPrepareTime = 0.3f; // 送球準備時間（体の向き変更）
+    [SerializeField] private RuntimeAnimatorController _fielderController;
+    [SerializeField] private RuntimeAnimatorController _pitcherController;
+    [SerializeField] private RuntimeAnimatorController _catcherController;
 
     [Header("Events")]
     [SerializeField] private OnDefenseCompletedEvent _onDefenseCompleted;
@@ -24,7 +27,8 @@ public class DefenseManager : MonoBehaviour, IInitializable
     [SerializeField] private OnDefenderCatchEvent _onDefenderCatch;
 
     private Dictionary<PositionType, FielderController> _byPosition;
-    private Dictionary<FielderController, Vector3> _initialPositions;
+    private Dictionary<FielderController, (Vector3 position, FielderAnimationController controller)> _initialPositions =
+        new Dictionary<FielderController, (Vector3, FielderAnimationController)>();
     private DefenseSituation _situation;
     private CancellationTokenSource _defenseCts;
 
@@ -40,11 +44,11 @@ public class DefenseManager : MonoBehaviour, IInitializable
         if (_onDefenderCatch != null) _onDefenderCatch.RegisterListener(OnBallCatchedFielder);
         else Debug.LogError("OnDefenderCatchEvent が未設定");
 
-        _initialPositions = new Dictionary<FielderController, Vector3>();
         foreach (var fielder in _fielders)
         {
             if (_initialPositions.ContainsKey(fielder)) continue;
-            _initialPositions.Add(fielder, fielder.transform.position);
+            _initialPositions.Add(
+                fielder, (fielder.transform.position, fielder.GetComponent<FielderAnimationController>()));
         }
 
         _byPosition = new Dictionary<PositionType, FielderController>();
@@ -53,6 +57,7 @@ public class DefenseManager : MonoBehaviour, IInitializable
         {
             if (fielder?.Data != null) _byPosition[fielder.Data.Position] = fielder;
         }
+
     }
 
     private void OnDestroy()
@@ -65,14 +70,35 @@ public class DefenseManager : MonoBehaviour, IInitializable
 
     public void OnInitialized(DefenseSituation situation)
     {
+        _defenseCts?.Cancel();
+        _defenseCts?.Dispose();
+        _defenseCts = null;
         _situation = situation;
         _hasCatchedBall = false;
-        // 野手を初期位置に戻す
+        // 野手を初期する
         foreach (var fielder in _fielders)
         {
-            if (_initialPositions.TryGetValue(fielder, out Vector3 initPos))
+            if (_initialPositions.TryGetValue(fielder, out var initData))
             {
-                fielder.transform.position = initPos;
+                {
+                    fielder.transform.position = initData.position;
+                    if (fielder.Data.Position == PositionType.Pitcher)
+                    {
+                        fielder.GetComponent<Animator>().runtimeAnimatorController = _pitcherController;
+                    }
+                    else
+                    {
+                        if (fielder.Data.Position == PositionType.Catcher)
+                        {
+                            fielder.GetComponent<Animator>().runtimeAnimatorController = _catcherController;
+                        }
+                        else
+                        {
+                            initData.controller.PlayAnimation(FielderState.Waiting);
+                        }
+                        fielder.transform.LookAt(_baseManager.GetBasePosition(BaseId.Home));
+                    }
+                }
             }
         }
     }
@@ -92,6 +118,8 @@ public class DefenseManager : MonoBehaviour, IInitializable
     /// </summary>
     public void ExecuteDefensePlan(DefensePlan plan)
     {
+        _byPosition[PositionType.Catcher].GetComponent<Animator>().runtimeAnimatorController = _fielderController;
+        _byPosition[PositionType.Pitcher].GetComponent<Animator>().runtimeAnimatorController = _fielderController;
         if (plan.CatchPlan.Catcher == null)
         {
             Debug.LogError("[DefenseManager] CatchPlan.Catcher is null!");
@@ -120,28 +148,26 @@ public class DefenseManager : MonoBehaviour, IInitializable
             // 1. 捕球者を捕球地点へ移動
             Debug.Log($"[DefenseManager] 捕球者 {plan.CatchPlan.Catcher.Data.Position} を移動開始");
 
-            await plan.CatchPlan.Catcher.MoveToCatchPointAsync(
+            plan.CatchPlan.Catcher.MoveToCatchPointAsync(
                 plan.CatchPlan.CatchPoint,
                 plan.CatchPlan.CatchTime,
-                ct);
+                _ball.gameObject,
+                ct).Forget();
 
             // 2. ベースカバーを配置（並列実行）
-            var coverTasks = new List<UniTask>();
             foreach (var cover in plan.BaseCovers)
             {
                 if (cover.Fielder == null) continue;
-
-                var basePos = _baseManager.GetBasePosition(cover.BaseId);
-                coverTasks.Add(cover.Fielder.MoveToBaseAsync(basePos, cover.ArriveTime, ct));
+                Vector3 v = _baseManager.GetBasePosition(cover.BaseId);
+                Debug.Log($"[DefenseManager] ベースカバー　{(BaseId)cover.BaseId} {cover.Fielder.Data.Position}が{v}に移動開始");
+                cover.Fielder.MoveToBaseAsync(
+                    _baseManager.GetBasePosition(cover.BaseId),
+                    _ball.gameObject,
+                    cover.ArriveTime,
+                    ct).Forget();
             }
 
-            if (coverTasks.Count > 0)
-            {
-                Debug.Log($"[DefenseManager] ベースカバー {coverTasks.Count}人を配置中");
-                await UniTask.WhenAll(coverTasks);
-            }
 
-            // 3. 捕球待機
             await UniTask.WaitUntil(() => _hasCatchedBall);
 
             Debug.Log($"[DefenseManager] ボール捕球成功");
@@ -179,77 +205,24 @@ public class DefenseManager : MonoBehaviour, IInitializable
     }
 
     /// <summary>
-    /// ボール捕球を待つ
-    /// </summary>
-    private async UniTask<bool> WaitForCatchAsync(FielderController catcher, CancellationToken ct)
-    {
-        bool caught = false;
-
-        // 捕球完了フラグ
-        catcher.StartWaitingForCatch(() =>
-        {
-            caught = true;
-        });
-
-        // タイムアウト付きで待機
-        float elapsed = 0f;
-
-        while (!caught && elapsed < _catchWaitTimeout)
-        {
-            ct.ThrowIfCancellationRequested();
-
-            // ボールとの距離チェック（Update代わり）
-            if (_ball != null)
-            {
-                Vector3 ballPos = _ball.transform.position;
-                if (catcher.TryCatchBall(ballPos))
-                {
-                    // ボールを野手の位置に付ける
-                    _ball.transform.position = catcher.transform.position + Vector3.up * 1f;
-
-                    caught = true;
-                    break;
-                }
-            }
-
-            elapsed += Time.deltaTime;
-            await UniTask.Yield(PlayerLoopTiming.Update, ct);
-        }
-
-        return caught;
-    }
-
-    /// <summary>
     /// 1回の送球ステップを実行
     /// </summary>
     private async UniTask ExecuteThrowStepAsync(ThrowStep step, CancellationToken ct)
     {
         // 1. 送球準備（向きを変える）
-        await step.ThrowerFielder.PrepareThrowAsync(
+        await step.ThrowerFielder.ThrowBallAsync(
             step.TargetPosition,
-            _throwPrepareTime,
+            _ball.gameObject,
             ct);
 
-        // 2. ボールを投げる
-        if (_ball != null)
-        {
-            Vector3 startPos = step.ThrowerFielder.transform.position + Vector3.up * 1.5f;
-
-            await _ball.ThrowToAsync(
-                startPos,
-                step.TargetPosition,
-                step.ThrowSpeed,
-                ct);
-        }
-
-        // 3. 受け手が捕球（簡易実装：到着時点で自動捕球）
+        // 2. 受け手が捕球（簡易実装：到着時点で自動捕球）
         if (step.ReceiverFielder != null)
         {
             Debug.Log($"[DefenseManager] {step.ReceiverFielder.Data.Position} が受球");
 
             if (_ball != null)
             {
-                _ball.transform.position = step.ReceiverFielder.transform.position + Vector3.up * 1f;
+                _ball.transform.position = step.ReceiverFielder.transform.position + Vector3.up;
             }
         }
     }

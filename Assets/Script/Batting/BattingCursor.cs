@@ -1,4 +1,3 @@
-using TMPro.EditorUtilities;
 using UnityEngine;
 
 public class BattingCursor : MonoBehaviour, IInitializable

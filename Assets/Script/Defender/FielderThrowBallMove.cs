@@ -48,6 +48,8 @@ public class FielderThrowBallMove : BallMoveTrajectory
         return _tcs.Task;
     }
 
+    private const float TRAJECTORY_HEIGHT_OFFSET = 0.03f;
+    private const float TRAJECTORY_CONTROL_POINT_OFFSET = 0.05f;
     /// <summary>
     /// ベジェ曲線で山なり弾道の点列を作る
     /// </summary>
@@ -61,10 +63,10 @@ public class FielderThrowBallMove : BallMoveTrajectory
         int sampleCount = Mathf.Max(2, Mathf.CeilToInt(flightTime / dt) + 1);
 
         // 中点を持ち上げた制御点（高さは距離に応じて少し増やすと自然）
-        Vector3 mid = (from + to) * 0.5f;
+        Vector3 mid = (from + to) * TRAJECTORY_HEIGHT_OFFSET;
 
         float dist = Vector3.Distance(from, to);
-        float height = arcHeight + dist * 0.05f; // 係数は好みで調整
+        float height = arcHeight + dist * TRAJECTORY_CONTROL_POINT_OFFSET; // 係数は好みで調整
         Vector3 control = new Vector3(mid.x, Mathf.Max(from.y, to.y) + height, mid.z);
 
         var traj = new List<Vector3>(sampleCount);
