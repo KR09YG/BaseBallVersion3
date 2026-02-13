@@ -54,20 +54,26 @@ public class FielderThrowBallMove : BallMoveTrajectory
     /// ベジェ曲線で山なり弾道の点列を作る
     /// </summary>
     private List<Vector3> BuildArcBezierTrajectory(
-        Vector3 from,
-        Vector3 to,
-        float flightTime,
-        float dt,
-        float arcHeight)
+    Vector3 from,
+    Vector3 to,
+    float flightTime,
+    float dt,
+    float arcHeight)
     {
         int sampleCount = Mathf.Max(2, Mathf.CeilToInt(flightTime / dt) + 1);
 
-        // 中点を持ち上げた制御点（高さは距離に応じて少し増やすと自然）
-        Vector3 mid = (from + to) * TRAJECTORY_HEIGHT_OFFSET;
+        // ★修正: 中点を正しく計算
+        Vector3 mid = (from + to) * 0.5f;  // 0.5f で中点
 
         float dist = Vector3.Distance(from, to);
-        float height = arcHeight + dist * TRAJECTORY_CONTROL_POINT_OFFSET; // 係数は好みで調整
-        Vector3 control = new Vector3(mid.x, Mathf.Max(from.y, to.y) + height, mid.z);
+        float height = arcHeight + dist * TRAJECTORY_CONTROL_POINT_OFFSET;
+
+        // ★修正: Y座標だけを持ち上げる
+        Vector3 control = new Vector3(
+            mid.x,
+            Mathf.Max(from.y, to.y) + height,  // Y座標だけ上げる
+            mid.z
+        );
 
         var traj = new List<Vector3>(sampleCount);
         for (int i = 0; i < sampleCount; i++)
@@ -79,7 +85,6 @@ public class FielderThrowBallMove : BallMoveTrajectory
                 (1 - t) * (1 - t) * from +
                 2 * (1 - t) * t * control +
                 t * t * to;
-
             traj.Add(p);
         }
 

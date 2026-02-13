@@ -11,6 +11,7 @@ public class FielderController : MonoBehaviour
     [SerializeField] private FielderAnimationController _animationController;
     [SerializeField] private FielderData _data;
     [SerializeField] private OnDefenderCatchEvent _defenderCatchEvent;
+    [SerializeField] private Transform _releasePoint;
     [SerializeField] private float _catchTime = 1f;
     public FielderData Data => _data;
 
@@ -23,7 +24,7 @@ public class FielderController : MonoBehaviour
     private bool _isWaitingForCatch;
     public bool _isWaitingForThrow;
 
-    private void SetState(FielderState state)
+    public void SetState(FielderState state)
     {
         State = state;
         _animationController?.PlayAnimation(state);
@@ -126,23 +127,23 @@ public class FielderController : MonoBehaviour
         transform.LookAt(ballPos);
     }
 
-    private const float YAW_OFFSET_THROW = 180f;
+    private const float YAW_OFFSET_THROW = 60;
     /// <summary>
     /// ‘—‹…€”õiŒü‚«‚ğ•Ï‚¦‚éj
     /// </summary>
     public async UniTask ThrowBallAsync(Vector3 targetPosition, GameObject ball, CancellationToken ct)
     {
         _isWaitingForThrow = true;
-        Vector3 ballPos = ball.transform.position;
-        Vector3 dir = ballPos - transform.position;
+        SetState(FielderState.ThrowingBall);
+        // ‘—‹…•ûŒü‚ğŒü‚­
+        Vector3 dir = transform.position - targetPosition;
         dir.y = 0f;
         float yawOffset = YAW_OFFSET_THROW;
         Quaternion targetRot = Quaternion.LookRotation(dir) * Quaternion.Euler(0f, yawOffset, 0f);
-        transform.rotation = targetRot;
-        SetState(FielderState.ThrowingBall);
+
         await UniTask.WaitUntil(() => !_isWaitingForThrow);
         await ball.GetComponent<FielderThrowBallMove>().
-            ThrowToAsync(this.transform.position, targetPosition, Data.ThrowSpeed, ct);
+            ThrowToAsync(_releasePoint.position, targetPosition, Data.ThrowSpeed, ct);
     }
 
     public void ThrowBall()
@@ -162,8 +163,6 @@ public enum FielderState
 {
     Waiting,
     MovingTo,
-    ReadyToCatch,
     CatchingBall,
-    PreparingThrow,
     ThrowingBall
 }

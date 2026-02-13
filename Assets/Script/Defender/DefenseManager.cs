@@ -68,36 +68,38 @@ public class DefenseManager : MonoBehaviour, IInitializable
         _defenseCts?.Dispose();
     }
 
+    private int _initializeCount = 0;
     public void OnInitialized(DefenseSituation situation)
     {
+        _initializeCount++;
+        Debug.Log($"[DefenseManager] OnInitialized called {_initializeCount} times.");
         _defenseCts?.Cancel();
         _defenseCts?.Dispose();
         _defenseCts = null;
         _situation = situation;
         _hasCatchedBall = false;
+
         // 野手を初期する
         foreach (var fielder in _fielders)
         {
             if (_initialPositions.TryGetValue(fielder, out var initData))
             {
+                fielder.transform.position = initData.position;
+                if (fielder.Data.Position == PositionType.Pitcher)
                 {
-                    fielder.transform.position = initData.position;
-                    if (fielder.Data.Position == PositionType.Pitcher)
+                    fielder.GetComponent<Animator>().runtimeAnimatorController = _pitcherController;
+                }
+                else
+                {
+                    if (fielder.Data.Position == PositionType.Catcher)
                     {
-                        fielder.GetComponent<Animator>().runtimeAnimatorController = _pitcherController;
+                        fielder.GetComponent<Animator>().runtimeAnimatorController = _catcherController;
                     }
                     else
                     {
-                        if (fielder.Data.Position == PositionType.Catcher)
-                        {
-                            fielder.GetComponent<Animator>().runtimeAnimatorController = _catcherController;
-                        }
-                        else
-                        {
-                            initData.controller.PlayAnimation(FielderState.Waiting);
-                        }
-                        fielder.transform.LookAt(_baseManager.GetBasePosition(BaseId.Home));
+                        fielder.SetState(FielderState.Waiting);
                     }
+                        fielder.transform.LookAt(_baseManager.GetBasePosition(BaseId.Home));
                 }
             }
         }
@@ -158,19 +160,13 @@ public class DefenseManager : MonoBehaviour, IInitializable
             foreach (var cover in plan.BaseCovers)
             {
                 if (cover.Fielder == null) continue;
-                Vector3 v = _baseManager.GetBasePosition(cover.BaseId);
-                Debug.Log($"[DefenseManager] ベースカバー　{(BaseId)cover.BaseId} {cover.Fielder.Data.Position}が{v}に移動開始");
                 cover.Fielder.MoveToBaseAsync(
-                    _baseManager.GetBasePosition(cover.BaseId),
-                    _ball.gameObject,
-                    cover.ArriveTime,
-                    ct).Forget();
+                    _baseManager.GetBasePosition(cover.BaseId), _ball.gameObject,
+                    cover.ArriveTime, ct).Forget();
             }
 
-
+            // 3. 捕球完了まで待機
             await UniTask.WaitUntil(() => _hasCatchedBall);
-
-            Debug.Log($"[DefenseManager] ボール捕球成功");
 
             // 4. 送球シーケンスを順次実行
             for (int i = 0; i < plan.ThrowSequence.Count; i++)
